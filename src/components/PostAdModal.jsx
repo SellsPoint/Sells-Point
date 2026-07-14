@@ -1,0 +1,434 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { X, Upload, Sparkles, ChevronLeft, ChevronRight, Check, Film, ImagePlus } from "lucide-react";
+import { useApp, CATEGORIES } from "@/context/AppContext";
+
+const CONDITIONS = ["New", "Like New", "Excellent", "Good", "Fair"];
+const STEPS = ["Details", "Media", "Pricing & Boost", "Review"];
+
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  if (!res.ok) throw new Error("Upload failed");
+  const { url } = await res.json();
+  return url;
+}
+
+export default function PostAdModal({ isOpen, onClose }) {
+  const { addListing, currentUser } = useApp();
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [submitted, setSubmitted] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    category: CATEGORIES[0].id,
+    condition: "Good",
+    description: "",
+    images: [],
+    video: null,
+    price: "",
+    originalPrice: "",
+    location: currentUser?.location || "",
+    featured: false,
+  });
+
+  if (!isOpen) return null;
+
+  const close = () => {
+    setStep(0);
+    setSubmitted(null);
+    setForm({
+      title: "",
+      category: CATEGORIES[0].id,
+      condition: "Good",
+      description: "",
+      images: [],
+      video: null,
+      price: "",
+      originalPrice: "",
+      location: currentUser?.location || "",
+      featured: false,
+    });
+    onClose();
+  };
+
+  const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const handleImages = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 6 - form.images.length);
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const urls = await Promise.all(files.map(uploadFile));
+      set({ images: [...form.images, ...urls] });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleVideo = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadFile(file);
+      set({ video: url });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = (idx) => set({ images: form.images.filter((_, i) => i !== idx) });
+
+  const canProceed = () => {
+    if (step === 0) return form.title.trim() && form.description.trim() && form.category;
+    if (step === 2) return form.price && Number(form.price) > 0;
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const listing = await addListing(form);
+      setSubmitted(listing);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 animate-fade-in">
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-soft animate-slide-up">
+        <div className="flex items-center justify-between border-b border-ink-100 px-6 py-4">
+          <h2 className="font-display text-lg font-bold text-ink-900">
+            {submitted ? "Ad Published" : "Post a New Ad"}
+          </h2>
+          <button
+            onClick={close}
+            className="rounded-full p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {!submitted && (
+          <div className="flex items-center gap-2 px-6 pt-4">
+            {STEPS.map((label, idx) => (
+              <div key={label} className="flex flex-1 items-center gap-2">
+                <div
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    idx <= step ? "bg-brand-600 text-white" : "bg-ink-100 text-ink-400"
+                  }`}
+                >
+                  {idx < step ? <Check size={14} /> : idx + 1}
+                </div>
+                <span
+                  className={`hidden text-xs font-medium sm:block ${
+                    idx <= step ? "text-ink-900" : "text-ink-400"
+                  }`}
+                >
+                  {label}
+                </span>
+                {idx < STEPS.length - 1 && <div className="h-px flex-1 bg-ink-100" />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {submitted ? (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+                <Check size={32} />
+              </div>
+              <h3 className="font-display text-xl font-bold text-ink-900">
+                Your ad is live!
+              </h3>
+              <p className="max-w-sm text-sm text-ink-500">
+                {submitted.featuredStatus === "pending"
+                  ? "Your listing is published and your featured request is awaiting admin approval."
+                  : "Your listing is now visible to buyers across Sells Point."}
+              </p>
+              <div className="mt-3 flex gap-3">
+                <button
+                  onClick={() => {
+                    router.push(`/product/${submitted.id}`);
+                    close();
+                  }}
+                  className="btn-primary"
+                >
+                  View Listing
+                </button>
+                <button onClick={close} className="btn-secondary">
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {step === 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                      Ad title
+                    </label>
+                    <input
+                      value={form.title}
+                      onChange={(e) => set({ title: e.target.value })}
+                      placeholder="e.g. iPhone 14 Pro 256GB"
+                      className="input-field"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                        Category
+                      </label>
+                      <select
+                        value={form.category}
+                        onChange={(e) => set({ category: e.target.value })}
+                        className="input-field"
+                      >
+                        {CATEGORIES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                        Condition
+                      </label>
+                      <select
+                        value={form.condition}
+                        onChange={(e) => set({ condition: e.target.value })}
+                        className="input-field"
+                      >
+                        {CONDITIONS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                      Description
+                    </label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => set({ description: e.target.value })}
+                      rows={4}
+                      placeholder="Describe the item's condition, usage, and reason for sale..."
+                      className="input-field resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                      Location
+                    </label>
+                    <input
+                      value={form.location}
+                      onChange={(e) => set({ location: e.target.value })}
+                      placeholder="City, Country"
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                      Photos <span className="text-ink-400">(up to 6)</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                      {form.images.map((src, idx) => (
+                        <div key={idx} className="group relative aspect-square overflow-hidden rounded-xl border border-ink-100">
+                          <img src={src} alt="" className="h-full w-full object-cover" />
+                          <button
+                            onClick={() => removeImage(idx)}
+                            className="absolute right-1 top-1 rounded-full bg-ink-950/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      {form.images.length < 6 && (
+                        <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-ink-200 text-ink-400 hover:border-brand-400 hover:text-brand-500">
+                          <ImagePlus size={20} />
+                          <span className="text-[11px]">{uploading ? "Uploading..." : "Add photo"}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={handleImages}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                      Video <span className="text-ink-400">(optional)</span>
+                    </label>
+                    {form.video ? (
+                      <div className="flex items-center justify-between rounded-xl border border-ink-100 px-4 py-3">
+                        <span className="flex items-center gap-2 text-sm text-ink-700">
+                          <Film size={16} /> Video attached
+                        </span>
+                        <button
+                          onClick={() => set({ video: null })}
+                          className="text-sm font-medium text-red-500"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-200 px-4 py-6 text-ink-400 hover:border-brand-400 hover:text-brand-500">
+                        <Upload size={18} />
+                        <span className="text-sm">
+                          {uploading ? "Uploading..." : "Upload a short video walkthrough"}
+                        </span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          disabled={uploading}
+                          onChange={handleVideo}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                        Selling price (₹)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.price}
+                        onChange={(e) => set({ price: e.target.value })}
+                        placeholder="45000"
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                        Original price (₹)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.originalPrice}
+                        onChange={(e) => set({ originalPrice: e.target.value })}
+                        placeholder="60000"
+                        className="input-field"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => set({ featured: !form.featured })}
+                    className={`flex w-full items-center justify-between rounded-2xl border-2 px-5 py-4 text-left transition-colors ${
+                      form.featured
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-ink-100 hover:border-ink-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                        <Sparkles size={20} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-ink-900">Boost as Featured Ad</p>
+                        <p className="text-xs text-ink-500">
+                          Get 5x more visibility. Subject to admin approval.
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={`h-6 w-11 shrink-0 rounded-full transition-colors ${
+                        form.featured ? "bg-amber-400" : "bg-ink-200"
+                      }`}
+                    >
+                      <div
+                        className={`h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                          form.featured ? "translate-x-5" : "translate-x-0.5"
+                        }`}
+                      />
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-4">
+                  <div className="overflow-hidden rounded-2xl border border-ink-100">
+                    {form.images[0] && (
+                      <img src={form.images[0]} alt="" className="h-44 w-full object-cover" />
+                    )}
+                    <div className="p-4">
+                      <h4 className="font-display font-bold text-ink-900">{form.title}</h4>
+                      <p className="mt-1 text-sm text-ink-500 line-clamp-2">{form.description}</p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="font-display text-lg font-bold text-ink-900">
+                          ₹{Number(form.price || 0).toLocaleString("en-IN")}
+                        </span>
+                        {form.featured && <span className="badge-gold">Featured (pending)</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-ink-500">
+                    Review the details above, then publish your ad. You can edit or mark it sold
+                    anytime from your dashboard.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {!submitted && (
+          <div className="flex items-center justify-between border-t border-ink-100 px-6 py-4">
+            <button
+              onClick={() => (step === 0 ? close() : setStep((s) => s - 1))}
+              className="btn-ghost"
+            >
+              <ChevronLeft size={16} /> {step === 0 ? "Cancel" : "Back"}
+            </button>
+            {step < STEPS.length - 1 ? (
+              <button
+                onClick={() => canProceed() && setStep((s) => s + 1)}
+                disabled={!canProceed()}
+                className="btn-primary"
+              >
+                Continue <ChevronRight size={16} />
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
+                {submitting ? "Publishing..." : "Publish Ad"} <Check size={16} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
