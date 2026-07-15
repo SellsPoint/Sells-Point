@@ -16,6 +16,7 @@ import {
   Star,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { supabase } from "@/lib/supabaseClient";
 
 function formatPrice(value) {
   return new Intl.NumberFormat("en-IN", {
@@ -51,15 +52,52 @@ export default function ProductPage({ params }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportSent, setReportSent] = useState(false);
+  const [fetchedListing, setFetchedListing] = useState(null);
+  const [fetching, setFetching] = useState(false);
 
-  const listing = getListingById(id);
+  const listing = getListingById(id) || fetchedListing;
+
+  // Fetch listing from Supabase if not in local state (due to pagination)
+  useEffect(() => {
+    if (hydrated && !getListingById(id)) {
+      setFetching(true);
+      supabase
+        .from("listings")
+        .select("*")
+        .eq("id", id)
+        .single()
+        .then(({ data, error }) => {
+          if (data && !error) {
+            setFetchedListing({
+              id: data.id,
+              sellerId: data.seller_id,
+              title: data.title,
+              description: data.description || "",
+              price: Number(data.price) || 0,
+              originalPrice: Number(data.original_price) || 0,
+              category: data.category,
+              condition: data.condition,
+              images: data.images || [],
+              video: data.video_url || null,
+              location: data.location || "",
+              featured: data.featured,
+              featuredStatus: data.featured_status || "none",
+              status: data.status || "active",
+              views: data.views || 0,
+              createdAt: data.created_at ? new Date(data.created_at).getTime() : Date.now(),
+            });
+          }
+          setFetching(false);
+        });
+    }
+  }, [id, hydrated, getListingById]);
 
   useEffect(() => {
     if (listing) incrementViews(listing.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (!hydrated) {
+  if (!hydrated || fetching) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-3">

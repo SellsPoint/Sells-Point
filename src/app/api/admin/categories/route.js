@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin, isAdminActor } from "@/lib/supabaseAdmin";
+
+export async function GET() {
+  const { data, error } = await supabaseAdmin
+    .from("categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ categories: data || [] });
+}
+
+export async function POST(request) {
+  const { actorId, action, category } = await request.json();
+
+  if (!(await isAdminActor(actorId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (action === "create") {
+    const { id, label, icon, sort_order } = category;
+    if (!id || !label) {
+      return NextResponse.json({ error: "id and label are required" }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin.from("categories").insert({
+      id,
+      label,
+      icon: icon || "Tag",
+      sort_order: sort_order ?? 0,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "update") {
+    const { id, label, icon, sort_order } = category;
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+    const updates = {};
+    if (label !== undefined) updates.label = label;
+    if (icon !== undefined) updates.icon = icon;
+    if (sort_order !== undefined) updates.sort_order = sort_order;
+    const { error } = await supabaseAdmin.from("categories").update(updates).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "delete") {
+    const { id } = category;
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+    const { count, error: countError } = await supabaseAdmin
+      .from("listings")
+      .select("*", { count: "exact", head: true })
+      .eq("category", id);
+    if (countError) return NextResponse.json({ error: countError.message }, { status: 500 });
+    if (count > 0) {
+      return NextResponse.json({ error: `Cannot delete: ${count} listing(s) use this category.` }, { status: 409 });
+    }
+    const { error } = await supabaseAdmin.from("categories").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+}

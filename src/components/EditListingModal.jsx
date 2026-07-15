@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { X, Upload, Sparkles, ChevronLeft, ChevronRight, Check, Film, ImagePlus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Upload, ChevronLeft, ChevronRight, Check, Film, ImagePlus } from "lucide-react";
 import { useApp, CONDITIONS } from "@/context/AppContext";
 
-const STEPS = ["Details", "Media", "Pricing & Boost", "Review"];
+const STEPS = ["Details", "Media", "Pricing", "Review"];
 
 async function uploadFile(file) {
   const formData = new FormData();
@@ -16,43 +15,50 @@ async function uploadFile(file) {
   return url;
 }
 
-export default function PostAdModal({ isOpen, onClose }) {
-  const { addListing, currentUser, categories } = useApp();
-  const router = useRouter();
+export default function EditListingModal({ isOpen, onClose, listing }) {
+  const { updateListing, categories } = useApp();
   const [step, setStep] = useState(0);
-  const [submitted, setSubmitted] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
-    title: "",
-    category: "",
-    condition: "Good",
-    description: "",
-    images: [],
-    video: null,
-    price: "",
-    originalPrice: "",
-    location: currentUser?.location || "",
-    featured: false,
+    title: listing?.title || "",
+    category: listing?.category || "",
+    condition: listing?.condition || "Good",
+    description: listing?.description || "",
+    images: listing?.images || [],
+    video: listing?.video || null,
+    price: listing?.price ? String(listing.price) : "",
+    originalPrice: listing?.originalPrice ? String(listing.originalPrice) : "",
+    location: listing?.location || "",
   });
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && listing) {
+      setForm({
+        title: listing.title || "",
+        category: listing.category || "",
+        condition: listing.condition || "Good",
+        description: listing.description || "",
+        images: listing.images || [],
+        video: listing.video || null,
+        price: listing.price ? String(listing.price) : "",
+        originalPrice: listing.originalPrice ? String(listing.originalPrice) : "",
+        location: listing.location || "",
+      });
+      setStep(0);
+      setSubmitted(false);
+      setError("");
+    }
+  }, [isOpen, listing]);
+
+  if (!isOpen || !listing) return null;
 
   const close = () => {
     setStep(0);
-    setSubmitted(null);
-    setForm({
-      title: "",
-      category: "",
-      condition: "Good",
-      description: "",
-      images: [],
-      video: null,
-      price: "",
-      originalPrice: "",
-      location: currentUser?.location || "",
-      featured: false,
-    });
+    setSubmitted(false);
+    setError("");
     onClose();
   };
 
@@ -62,9 +68,12 @@ export default function PostAdModal({ isOpen, onClose }) {
     const files = Array.from(e.target.files || []).slice(0, 6 - form.images.length);
     if (files.length === 0) return;
     setUploading(true);
+    setError("");
     try {
       const urls = await Promise.all(files.map(uploadFile));
       set({ images: [...form.images, ...urls] });
+    } catch {
+      setError("Failed to upload image. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -74,9 +83,12 @@ export default function PostAdModal({ isOpen, onClose }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setError("");
     try {
       const url = await uploadFile(file);
       set({ video: url });
+    } catch {
+      setError("Failed to upload video. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -92,9 +104,16 @@ export default function PostAdModal({ isOpen, onClose }) {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setError("");
     try {
-      const listing = await addListing(form);
-      setSubmitted(listing);
+      const result = await updateListing(listing.id, form);
+      if (result?.success) {
+        setSubmitted(true);
+      } else {
+        setError(result?.error || "Failed to save listing. Please check your inputs and try again.");
+      }
+    } catch (err) {
+      setError("Failed to save listing. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -105,7 +124,7 @@ export default function PostAdModal({ isOpen, onClose }) {
       <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-soft animate-slide-up">
         <div className="flex items-center justify-between border-b border-ink-100 px-6 py-4">
           <h2 className="font-display text-lg font-bold text-ink-900">
-            {submitted ? "Ad Published" : "Post a New Ad"}
+            {submitted ? "Listing Updated" : "Edit Listing"}
           </h2>
           <button
             onClick={close}
@@ -146,30 +165,22 @@ export default function PostAdModal({ isOpen, onClose }) {
                 <Check size={32} />
               </div>
               <h3 className="font-display text-xl font-bold text-ink-900">
-                Your ad is live!
+                Listing updated!
               </h3>
               <p className="max-w-sm text-sm text-ink-500">
-                {submitted.featuredStatus === "pending"
-                  ? "Your listing is published and your featured request is awaiting admin approval."
-                  : "Your listing is now visible to buyers across Sells Point."}
+                Your listing has been updated successfully.
               </p>
-              <div className="mt-3 flex gap-3">
-                <button
-                  onClick={() => {
-                    router.push(`/product/${submitted.id}`);
-                    close();
-                  }}
-                  className="btn-primary"
-                >
-                  View Listing
-                </button>
-                <button onClick={close} className="btn-secondary">
-                  Close
-                </button>
-              </div>
+              <button onClick={close} className="btn-primary mt-3">
+                Close
+              </button>
             </div>
           ) : (
             <>
+              {error && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
               {step === 0 && (
                 <div className="space-y-4">
                   <div>
@@ -341,39 +352,6 @@ export default function PostAdModal({ isOpen, onClose }) {
                       />
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => set({ featured: !form.featured })}
-                    className={`flex w-full items-center justify-between rounded-2xl border-2 px-5 py-4 text-left transition-colors ${
-                      form.featured
-                        ? "border-amber-400 bg-amber-50"
-                        : "border-ink-100 hover:border-ink-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                        <Sparkles size={20} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-ink-900">Boost as Featured Ad</p>
-                        <p className="text-xs text-ink-500">
-                          Get 5x more visibility. Subject to admin approval.
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`h-6 w-11 shrink-0 rounded-full transition-colors ${
-                        form.featured ? "bg-amber-400" : "bg-ink-200"
-                      }`}
-                    >
-                      <div
-                        className={`h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
-                          form.featured ? "translate-x-5" : "translate-x-0.5"
-                        }`}
-                      />
-                    </div>
-                  </button>
                 </div>
               )}
 
@@ -390,13 +368,11 @@ export default function PostAdModal({ isOpen, onClose }) {
                         <span className="font-display text-lg font-bold text-ink-900">
                           ₹{Number(form.price || 0).toLocaleString("en-IN")}
                         </span>
-                        {form.featured && <span className="badge-gold">Featured (pending)</span>}
                       </div>
                     </div>
                   </div>
                   <p className="text-sm text-ink-500">
-                    Review the details above, then publish your ad. You can edit or mark it sold
-                    anytime from your dashboard.
+                    Review the details above, then save your changes.
                   </p>
                 </div>
               )}
@@ -422,7 +398,7 @@ export default function PostAdModal({ isOpen, onClose }) {
               </button>
             ) : (
               <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
-                {submitting ? "Publishing..." : "Publish Ad"} <Check size={16} />
+                {submitting ? "Saving..." : "Save Changes"} <Check size={16} />
               </button>
             )}
           </div>

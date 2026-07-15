@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Star, MapPin, CalendarDays, Package } from "lucide-react";
+import { ShieldCheck, Star, MapPin, CalendarDays, Package, Pencil } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import ProductCard from "@/components/ProductCard";
+import EditProfileModal from "@/components/EditProfileModal";
 
 export default function ProfilePage({ params }) {
   const { id } = params;
-  const { hydrated, getUserById, listings } = useApp();
+  const { hydrated, getUserById, listings, currentUser } = useApp();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const user = getUserById(id);
 
   if (!hydrated) {
@@ -19,10 +22,10 @@ export default function ProfilePage({ params }) {
             <div className="skeleton h-5 w-1/3 rounded-md" />
             <div className="skeleton h-4 w-2/3 rounded-md" />
           </div>
-        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (!user) {
     return (
@@ -52,6 +55,14 @@ export default function ProfilePage({ params }) {
               </span>
             )}
             {user.isAdmin && <span className="badge bg-ink-900 text-white">Admin</span>}
+            {currentUser?.id === user.id && (
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="btn-ghost !px-3 !py-1 text-sm"
+              >
+                <Pencil size={14} /> Edit Profile
+              </button>
+            )}
           </div>
           <p className="mt-2 max-w-lg text-sm text-ink-500">{user.bio || "No bio yet."}</p>
           <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm text-ink-500 sm:justify-start">
@@ -83,6 +94,12 @@ export default function ProfilePage({ params }) {
           ))}
         </div>
       )}
+
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        user={user}
+      />
     </div>
   );
 }

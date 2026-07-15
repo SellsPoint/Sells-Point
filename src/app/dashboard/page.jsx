@@ -2,9 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Heart, CheckCircle2, Sparkles, Trash2 } from "lucide-react";
+import { Package, Heart, CheckCircle2, Sparkles, Trash2, Pencil, Clock } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import ProductCard from "@/components/ProductCard";
+import EditListingModal from "@/components/EditListingModal";
+
+function isExpired(listing) {
+  if (listing.status !== "active") return false;
+  if (!listing.createdAt) return false;
+  const created = new Date(listing.createdAt);
+  if (isNaN(created.getTime())) return false;
+  const now = new Date();
+  const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+  return diffDays > 30;
+}
+
+function expiredAgoText(createdAt) {
+  if (!createdAt) return "";
+  const created = new Date(createdAt);
+  if (isNaN(created.getTime())) return "";
+  const diffMs = Date.now() - created.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Expired today";
+  if (diffDays === 1) return "Expired 1 day ago";
+  return `Expired ${diffDays} days ago`;
+}
 
 function formatPrice(value) {
   return new Intl.NumberFormat("en-IN", {
@@ -19,6 +41,8 @@ export default function DashboardPage() {
     useApp();
   const router = useRouter();
   const [tab, setTab] = useState("active");
+  const [editingListing, setEditingListing] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!currentUser) router.push("/");
@@ -29,10 +53,12 @@ export default function DashboardPage() {
   const myListings = listings.filter((l) => l.sellerId === currentUser.id);
   const active = myListings.filter((l) => l.status === "active");
   const sold = myListings.filter((l) => l.status === "sold");
+  const expired = myListings.filter((l) => isExpired(l));
 
   const TABS = [
-    { id: "active", label: `Active (${active.length})`, icon: Package },
+    { id: "active", label: `Active (${active.length - expired.length})`, icon: Package },
     { id: "sold", label: `Sold (${sold.length})`, icon: CheckCircle2 },
+    { id: "expired", label: `Expired (${expired.length})`, icon: Clock },
     { id: "wishlist", label: `Wishlist (${favoriteListings.length})`, icon: Heart },
   ];
 
@@ -74,10 +100,24 @@ export default function DashboardPage() {
         )
       ) : (
         <div className="space-y-3">
-          {(tab === "active" ? active : sold).length === 0 && (
-            <p className="py-16 text-center text-sm text-ink-400">Nothing here yet.</p>
+          {(tab === "active"
+            ? active.filter((l) => !isExpired(l))
+            : tab === "expired"
+            ? expired
+            : sold
+          ).length === 0 && (
+            <p className="py-16 text-center text-sm text-ink-400">
+              {tab === "expired"
+                ? "No expired listings yet."
+                : "Nothing here yet."}
+            </p>
           )}
-          {(tab === "active" ? active : sold).map((l) => (
+          {(tab === "active"
+            ? active.filter((l) => !isExpired(l))
+            : tab === "expired"
+            ? expired
+            : sold
+          ).map((l) => (
             <div key={l.id} className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
               <img
                 src={l.images?.[0]}
@@ -93,9 +133,21 @@ export default function DashboardPage() {
                     <span className="badge-gold capitalize">{l.featuredStatus}</span>
                   )}
                 </div>
+                {tab === "expired" && (
+                  <p className="mt-1 text-xs text-red-500">{expiredAgoText(l.createdAt)}</p>
+                )}
               </div>
               {tab === "active" && (
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingListing(l);
+                      setIsEditModalOpen(true);
+                    }}
+                    className="btn-secondary px-3 py-1.5 text-sm"
+                  >
+                    <Pencil size={14} /> Edit
+                  </button>
                   {l.featuredStatus === "none" && (
                     <button
                       onClick={() => requestFeatured(l.id)}
@@ -118,10 +170,29 @@ export default function DashboardPage() {
                   </button>
                 </div>
               )}
+              {tab === "expired" && (
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    onClick={() => deleteListing(l.id)}
+                    className="rounded-xl border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
+
+      <EditListingModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingListing(null);
+        }}
+        listing={editingListing}
+      />
     </div>
   );
 }

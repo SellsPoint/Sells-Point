@@ -58,6 +58,13 @@ create table if not exists messages (
   created_at timestamptz not null default now()
 );
 
+create table if not exists chat_reads (
+  user_id uuid references profiles(id) on delete cascade,
+  chat_id uuid references chats(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (user_id, chat_id)
+);
+
 create table if not exists favorites (
   user_id uuid references profiles(id) on delete cascade,
   listing_id uuid references listings(id) on delete cascade,
@@ -75,9 +82,38 @@ create table if not exists reports (
   created_at timestamptz not null default now()
 );
 
+create table if not exists categories (
+  id text primary key,
+  label text not null,
+  icon text not null default 'Tag',
+  sort_order integer not null default 0
+);
+
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid references profiles(id) on delete cascade,
+  actor_id uuid references profiles(id) on delete set null,
+  type text not null check (type in ('message', 'favorite', 'listing_sold', 'price_drop', 'admin', 'featured_approved', 'featured_rejected', 'user_banned')),
+  entity_id uuid,
+  entity_type text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text not null,
+  created_by uuid references profiles(id) on delete set null,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists listings_seller_idx on listings(seller_id);
 create index if not exists messages_chat_idx on messages(chat_id);
 create index if not exists chats_participants_idx on chats using gin(participant_ids);
+create index if not exists notifications_recipient_idx on notifications(recipient_id);
+create index if not exists chat_reads_user_idx on chat_reads(user_id);
 
 -- =========================================================
 -- Row Level Security
@@ -98,10 +134,17 @@ create index if not exists chats_participants_idx on chats using gin(participant
 
 alter table profiles enable row level security;
 alter table listings enable row level security;
+alter table categories enable row level security;
 alter table chats enable row level security;
 alter table messages enable row level security;
 alter table favorites enable row level security;
 alter table reports enable row level security;
+alter table notifications enable row level security;
+alter table chat_reads enable row level security;
+alter table announcements enable row level security;
+
+drop policy if exists "announcements_select_all" on announcements;
+create policy "announcements_select_all" on announcements for select using (true);
 
 drop policy if exists "profiles_select_all" on profiles;
 create policy "profiles_select_all" on profiles for select using (true);
@@ -118,6 +161,9 @@ drop policy if exists "listings_update_all" on listings;
 create policy "listings_update_all" on listings for update using (true);
 drop policy if exists "listings_delete_all" on listings;
 create policy "listings_delete_all" on listings for delete using (true);
+
+drop policy if exists "categories_select_all" on categories;
+create policy "categories_select_all" on categories for select using (true);
 
 drop policy if exists "chats_select_all" on chats;
 create policy "chats_select_all" on chats for select using (true);
@@ -141,10 +187,44 @@ create policy "favorites_delete_all" on favorites for delete using (true);
 drop policy if exists "reports_insert_all" on reports;
 create policy "reports_insert_all" on reports for insert with check (true);
 
+-- notifications: users can only read their own notifications; inserts are
+-- done by the service role (API routes) or by the app via the anon key with
+-- the understanding that RLS is permissive for now (same trust model as
+-- other tables until real auth is wired in).
+drop policy if exists "notifications_select_own" on notifications;
+create policy "notifications_select_own" on notifications for select using (true);
+drop policy if exists "notifications_insert_all" on notifications;
+create policy "notifications_insert_all" on notifications for insert with check (true);
+drop policy if exists "notifications_update_own" on notifications;
+create policy "notifications_update_own" on notifications for update using (true);
+
+drop policy if exists "chat_reads_select_all" on chat_reads;
+create policy "chat_reads_select_all" on chat_reads for select using (true);
+drop policy if exists "chat_reads_insert_all" on chat_reads;
+create policy "chat_reads_insert_all" on chat_reads for insert with check (true);
+drop policy if exists "chat_reads_update_all" on chat_reads;
+create policy "chat_reads_update_all" on chat_reads for update using (true);
+
+-- =========================================================
+-- RPC functions
+-- =========================================================
+
+create or replace function get_category_stats()
+returns table (category text, count bigint)
+language sql
+as $$
+  select l.category, count(*) as count
+  from listings l
+  where l.status = 'active'
+  group by l.category
+  order by count desc;
+$$;
+
 -- =========================================================
 -- Realtime
 -- =========================================================
 alter publication supabase_realtime add table messages;
+alter publication supabase_realtime add table notifications;
 
 -- =========================================================
 -- Seed data (safe to re-run — ids are fixed, ON CONFLICT DO NOTHING)
@@ -155,6 +235,19 @@ insert into profiles (id, phone, name, email, avatar_url, verified, is_admin, is
   ('00000000-0000-0000-0000-000000000002', '+919812345678', 'Aarav Mehta', 'aarav.mehta@example.com', 'https://i.pravatar.cc/150?img=13', true, false, false, 'Mumbai, IN', 'Upgrading gadgets every year — selling gently used electronics in mint condition.', now() - interval '410 days', 4.8, 37),
   ('00000000-0000-0000-0000-000000000003', '+919823456789', 'Priya Sharma', 'priya.sharma@example.com', 'https://i.pravatar.cc/150?img=32', true, false, false, 'Pune, IN', 'Interior design enthusiast selling premium furniture pieces.', now() - interval '280 days', 4.6, 21),
   ('00000000-0000-0000-0000-000000000004', '+919834567890', 'Rohan Kapoor', 'rohan.kapoor@example.com', 'https://i.pravatar.cc/150?img=15', false, false, false, 'Delhi, IN', 'Car and bike enthusiast. Quick and honest deals.', now() - interval '60 days', 4.2, 9)
+on conflict (id) do nothing;
+
+insert into categories (id, label, icon, sort_order) values
+  ('mobiles', 'Mobiles', 'Smartphone', 1),
+  ('laptops', 'Laptops', 'Laptop', 2),
+  ('vehicles', 'Vehicles', 'Car', 3),
+  ('furniture', 'Furniture', 'Sofa', 4),
+  ('fashion', 'Fashion', 'Shirt', 5),
+  ('gaming', 'Gaming', 'Gamepad2', 6),
+  ('appliances', 'Appliances', 'WashingMachine', 7),
+  ('cameras', 'Cameras', 'Camera', 8),
+  ('books', 'Books', 'BookOpen', 9),
+  ('realestate', 'Real Estate', 'Building2', 10)
 on conflict (id) do nothing;
 
 insert into listings (id, seller_id, title, description, price, original_price, category, condition, images, video_url, location, featured, featured_status, status, created_at, views) values

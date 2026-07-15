@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 const AppContext = createContext(null);
@@ -18,6 +18,17 @@ export const CATEGORIES = [
   { id: "books", label: "Books", icon: "BookOpen" },
   { id: "realestate", label: "Real Estate", icon: "Building2" },
 ];
+
+export const CONDITIONS = ["New", "Like New", "Excellent", "Good", "Fair"];
+
+function mapCategory(row) {
+  return {
+    id: row.id,
+    label: row.label,
+    icon: row.icon,
+    sortOrder: row.sort_order,
+  };
+}
 
 // ----- DB row <-> app object mapping -----
 
@@ -92,6 +103,19 @@ function mapReport(row) {
   };
 }
 
+function mapNotification(row) {
+  return {
+    id: row.id,
+    recipientId: row.recipient_id,
+    actorId: row.actor_id,
+    type: row.type,
+    entityId: row.entity_id,
+    entityType: row.entity_type,
+    read: row.read,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+  };
+}
+
 const LISTING_FIELD_MAP = {
   title: "title",
   description: "description",
@@ -138,26 +162,146 @@ function toProfileRow(updates) {
 export function AppProvider({ children }) {
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
+  const [categories, setCategories] = useState(CATEGORIES);
   const [chats, setChats] = useState([]);
+  const chatsRef = useRef(chats);
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
   const [reports, setReports] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingOtp, setPendingOtp] = useState(null);
   const [hydrated, setHydrated] = useState(false);
   const [blockedUsers, setBlockedUsersState] = useState([]);
+  const [chatReads, setChatReads] = useState({});
+  const chatReadsRef = useRef(chatReads);
+  useEffect(() => {
+    chatReadsRef.current = chatReads;
+  }, [chatReads]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [publicAnnouncements, setPublicAnnouncements] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+
+  const [paginatedListings, setPaginatedListings] = useState([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [paginatedLoading, setPaginatedLoading] = useState(false);
+  const [paginatedHasMore, setPaginatedHasMore] = useState(true);
+  const [lastFilters, setLastFilters] = useState({});
+  const ITEMS_PER_PAGE = 20;
+  const queryIdRef = useRef(0);
+
+  const fetchCategories = useCallback(async () => {
+    const res = await fetch("/api/admin/categories");
+    if (res.ok) {
+      const json = await res.json();
+      if (json.categories && json.categories.length > 0) {
+        setCategories(json.categories.map(mapCategory));
+      }
+    }
+  }, []);
 
   // ----- initial public data -----
   useEffect(() => {
     (async () => {
-      const [{ data: profileRows }, { data: listingRows }] = await Promise.all([
+      const [profileRes, listingsRes] = await Promise.all([
         supabase.from("profiles").select("*").order("joined_at", { ascending: true }),
         supabase.from("listings").select("*").order("created_at", { ascending: false }),
       ]);
-      setUsers((profileRows || []).map(mapProfile));
-      setListings((listingRows || []).map(mapListing));
+      setUsers((profileRes.data || []).map(mapProfile));
+      setListings((listingsRes.data || []).map(mapListing));
+      fetchCategories();
+      fetchAnnouncements();
       setHydrated(true);
     })();
-  }, []);
+  }, [fetchCategories]);
+
+  const fetchPaginatedListings = useCallback(
+    async ({ page = 0, filters = {} } = {}) => {
+      const queryId = ++queryIdRef.current;
+      setPaginatedLoading(true);
+      try {
+        const from = page * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+
+        if (page === 0) {
+          setLastFilters(filters);
+        }
+
+        let query = supabase
+          .from("listings")
+          .select("*", { count: "exact" })
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
+
+        if (filters.category) {
+          query = query.eq("category", filters.category);
+        }
+        if (filters.q) {
+          query = query.ilike("title", `%${filters.q}%`);
+        }
+        if (filters.loc && filters.loc !== "All India") {
+          query = query.eq("location", filters.loc);
+        }
+        if (filters.minPrice) {
+          query = query.gte("price", filters.minPrice);
+        }
+        if (filters.maxPrice) {
+          query = query.lte("price", filters.maxPrice);
+        }
+        if (filters.conditions && filters.conditions.length > 0) {
+          query = query.in("condition", filters.conditions);
+        }
+        if (filters.dateFilter && filters.dateFilter !== "all") {
+          const now = new Date();
+          let cutoff;
+          if (filters.dateFilter === "24h") cutoff = new Date(now - 1 * 24 * 60 * 60 * 1000);
+          else if (filters.dateFilter === "7d") cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+          else if (filters.dateFilter === "30d") cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
+          if (cutoff) query = query.gte("created_at", cutoff.toISOString());
+        }
+
+        const { data, count, error } = await query.range(from, to);
+        if (queryId !== queryIdRef.current) return;
+        if (error) {
+          setPaginatedHasMore(false);
+          return;
+        }
+
+        const mapped = (data || []).map(mapListing);
+        if (page === 0) {
+          setPaginatedListings(mapped);
+        } else {
+          setPaginatedListings((prev) => [...prev, ...mapped]);
+        }
+        setCurrentPage(page);
+        setTotalCount(count || 0);
+        setPaginatedHasMore(from + mapped.length < (count || 0));
+      } finally {
+        if (queryId === queryIdRef.current) {
+          setPaginatedLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const loadMore = useCallback(() => {
+    if (!paginatedLoading && paginatedHasMore) {
+      fetchPaginatedListings({ page: currentPage + 1, filters: lastFilters });
+    }
+  }, [paginatedLoading, paginatedHasMore, currentPage, lastFilters, fetchPaginatedListings]);
+
+  const resetPagination = useCallback(
+    (filters = {}) => {
+      setPaginatedListings([]);
+      setPaginatedHasMore(true);
+      fetchPaginatedListings({ page: 0, filters });
+    },
+    [fetchPaginatedListings]
+  );
 
   // ----- resolve logged-in user from localStorage -----
   useEffect(() => {
@@ -210,6 +354,213 @@ export function AppProvider({ children }) {
     setReports((json.reports || []).map(mapReport));
   }, []);
 
+  const addCategory = useCallback(
+    async (category) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "create", category }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchCategories();
+      return { success: true };
+    },
+    [currentUser, fetchCategories]
+  );
+
+  const updateCategory = useCallback(
+    async (category) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "update", category }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchCategories();
+      return { success: true };
+    },
+    [currentUser, fetchCategories]
+  );
+
+  const deleteCategory = useCallback(
+    async (id) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "delete", category: { id } }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchCategories();
+      return { success: true };
+    },
+    [currentUser, fetchCategories]
+  );
+
+  const fetchAnnouncements = useCallback(async () => {
+    const res = await fetch("/api/announcements");
+    if (res.ok) {
+      const json = await res.json();
+      setPublicAnnouncements(json.announcements || []);
+    }
+  }, []);
+
+  const fetchAdminAnnouncements = useCallback(async (actorId) => {
+    const res = await fetch(`/api/admin/announcements?actorId=${actorId}`);
+    if (res.ok) {
+      const json = await res.json();
+      setAnnouncements(json.announcements || []);
+    }
+  }, []);
+
+  const createAnnouncement = useCallback(
+    async ({ title, body }) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "create", announcement: { title, body } }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchAdminAnnouncements(currentUser.id);
+      await fetchAnnouncements();
+      return { success: true };
+    },
+    [currentUser, fetchAdminAnnouncements, fetchAnnouncements]
+  );
+
+  const deactivateAnnouncement = useCallback(
+    async (id) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "deactivate", announcement: { id } }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchAdminAnnouncements(currentUser.id);
+      await fetchAnnouncements();
+      return { success: true };
+    },
+    [currentUser, fetchAdminAnnouncements, fetchAnnouncements]
+  );
+
+  const deleteAnnouncement = useCallback(
+    async (id) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "delete", announcement: { id } }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        return { success: false, error: json.error };
+      }
+      await fetchAdminAnnouncements(currentUser.id);
+      await fetchAnnouncements();
+      return { success: true };
+    },
+    [currentUser, fetchAdminAnnouncements, fetchAnnouncements]
+  );
+
+  const fetchAnalytics = useCallback(async (actorId) => {
+    const res = await fetch(`/api/admin/analytics?actorId=${actorId}`);
+    if (res.ok) {
+      const json = await res.json();
+      setAnalytics(json);
+    }
+  }, []);
+
+  const createNotification = useCallback(
+    async (recipientId, actorId, type, entityId, entityType) => {
+      await supabase.from("notifications").insert({
+        recipient_id: recipientId,
+        actor_id: actorId,
+        type,
+        entity_id: entityId,
+        entity_type: entityType,
+        read: false,
+      });
+    },
+    []
+  );
+
+  const fetchNotifications = useCallback(async (userId) => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("recipient_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setNotifications((data || []).map(mapNotification));
+  }, []);
+
+  const fetchChatReads = useCallback(async (userId) => {
+    const { data } = await supabase
+      .from("chat_reads")
+      .select("chat_id, last_read_at")
+      .eq("user_id", userId);
+    const map = {};
+    (data || []).forEach((r) => {
+      map[r.chat_id] = new Date(r.last_read_at).getTime();
+    });
+    setChatReads(map);
+  }, []);
+
+  const markChatAsRead = useCallback(
+    async (chatId) => {
+      if (!currentUser) return;
+      const now = new Date().toISOString();
+      const existing = chatReadsRef.current[chatId];
+      if (existing) {
+        await supabase
+          .from("chat_reads")
+          .update({ last_read_at: now })
+          .eq("user_id", currentUser.id)
+          .eq("chat_id", chatId);
+      } else {
+        await supabase.from("chat_reads").insert({
+          user_id: currentUser.id,
+          chat_id: chatId,
+          last_read_at: now,
+        });
+      }
+      setChatReads((prev) => ({ ...prev, [chatId]: Date.now() }));
+    },
+    [currentUser]
+  );
+
+  const markNotificationRead = useCallback(async (id) => {
+    await supabase.from("notifications").update({ read: true }).eq("id", id);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      await supabase.from("notifications").update({ read: true }).in("id", unreadIds);
+    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, [notifications]);
+
   useEffect(() => {
     if (currentUser) {
       fetchUserChats(currentUser.id);
@@ -223,10 +574,48 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (currentUser?.isAdmin) {
       fetchReports(currentUser.id);
+      fetchAdminAnnouncements(currentUser.id);
+      fetchAnalytics(currentUser.id);
     } else {
       setReports([]);
+      setAnnouncements([]);
+      setAnalytics(null);
     }
-  }, [currentUser, fetchReports]);
+  }, [currentUser, fetchReports, fetchAdminAnnouncements, fetchAnalytics]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchNotifications(currentUser.id);
+    } else {
+      setNotifications([]);
+    }
+  }, [currentUser, fetchNotifications]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchChatReads(currentUser.id);
+    } else {
+      setChatReads({});
+    }
+  }, [currentUser, fetchChatReads]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const channel = supabase
+      .channel(`notifications-${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${currentUser.id}` },
+        (payload) => {
+          const mapped = mapNotification(payload.new);
+          setNotifications((prev) => (prev.some((n) => n.id === mapped.id) ? prev : [mapped, ...prev]));
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -296,18 +685,23 @@ export function AppProvider({ children }) {
 
   const updateProfile = useCallback(
     async (updates) => {
-      if (!currentUser) return;
-      const row = toProfileRow(updates);
+      if (!currentUser) return { success: false, error: "Not logged in." };
+      const safe = {};
+      for (const key of ["name", "avatar", "bio", "location"]) {
+        if (key in updates) safe[key] = updates[key];
+      }
+      const row = toProfileRow(safe);
       const { data, error } = await supabase
         .from("profiles")
         .update(row)
         .eq("id", currentUser.id)
         .select()
         .single();
-      if (error) return;
+      if (error) return { success: false, error: error.message };
       const mapped = mapProfile(data);
       setCurrentUser(mapped);
       setUsers((prev) => prev.map((u) => (u.id === mapped.id ? mapped : u)));
+      return { success: true };
     },
     [currentUser]
   );
@@ -344,13 +738,25 @@ export function AppProvider({ children }) {
     [currentUser]
   );
 
-  const updateListing = useCallback(async (id, updates) => {
-    const row = toListingRow(updates);
-    const { data, error } = await supabase.from("listings").update(row).eq("id", id).select().single();
-    if (error) return;
-    const mapped = mapListing(data);
-    setListings((prev) => prev.map((l) => (l.id === id ? mapped : l)));
-  }, []);
+  const updateListing = useCallback(
+    async (id, updates, options = {}) => {
+      if (!currentUser && !options.skipOwnershipCheck) return { success: false, error: "Not authenticated" };
+      if (!options.skipOwnershipCheck) {
+        const existing = listings.find((l) => l.id === id);
+        if (!existing || existing.sellerId !== currentUser.id) return { success: false, error: "Not authorized" };
+      }
+      const row = toListingRow(updates);
+      const { data, error } = await supabase.from("listings").update(row).eq("id", id).select().single();
+      if (error) {
+        console.error("updateListing error:", error);
+        return { success: false, error: error.message };
+      }
+      const mapped = mapListing(data);
+      setListings((prev) => prev.map((l) => (l.id === id ? mapped : l)));
+      return { success: true };
+    },
+    [currentUser, listings]
+  );
 
   const deleteListing = useCallback(async (id) => {
     const { error } = await supabase.from("listings").delete().eq("id", id);
@@ -358,7 +764,26 @@ export function AppProvider({ children }) {
     setListings((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
-  const markAsSold = useCallback((id) => updateListing(id, { status: "sold" }), [updateListing]);
+  const markAsSold = useCallback(
+    async (id) => {
+      const result = await updateListing(id, { status: "sold" });
+      if (result?.success) {
+        const { data: favs } = await supabase
+          .from("favorites")
+          .select("user_id")
+          .eq("listing_id", id);
+        if (favs && currentUser) {
+          for (const fav of favs) {
+            if (fav.user_id !== currentUser.id) {
+              await createNotification(fav.user_id, currentUser.id, "listing_sold", id, "listing");
+            }
+          }
+        }
+      }
+      return result;
+    },
+    [updateListing, currentUser, createNotification]
+  );
 
   const requestFeatured = useCallback(
     (id) => updateListing(id, { featured: true, featuredStatus: "pending" }),
@@ -369,7 +794,7 @@ export function AppProvider({ children }) {
     (id) => {
       const listing = listings.find((l) => l.id === id);
       if (!listing) return;
-      updateListing(id, { views: (listing.views || 0) + 1 });
+      updateListing(id, { views: (listing.views || 0) + 1 }, { skipOwnershipCheck: true });
     },
     [listings, updateListing]
   );
@@ -460,9 +885,16 @@ export function AppProvider({ children }) {
             : c
         )
       );
+      const chat = chatsRef.current.find((c) => c.id === chatId);
+      if (chat) {
+        const recipientIds = chat.participantIds.filter((pid) => pid !== currentUser.id);
+        for (const recipientId of recipientIds) {
+          await createNotification(recipientId, currentUser.id, "message", chatId, "chat");
+        }
+      }
       return mapped;
     },
-    [currentUser]
+    [currentUser, createNotification]
   );
 
   const appendIncomingMessage = useCallback((chatId, row) => {
@@ -486,6 +918,28 @@ export function AppProvider({ children }) {
         return bLast - aLast;
       });
   }, [currentUser, chats]);
+
+  const getUnreadCount = useCallback(
+    (chatId) => {
+      const lastRead = chatReads[chatId] || 0;
+      const chat = chats.find((c) => c.id === chatId);
+      if (!chat) return 0;
+      return chat.messages.filter(
+        (m) => m.createdAt > lastRead && m.senderId !== currentUser?.id
+      ).length;
+    },
+    [chatReads, chats, currentUser]
+  );
+
+  const unreadMessageCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return userChats.reduce((total, chat) => {
+      const lastRead = chatReads[chat.id] || 0;
+      return total + chat.messages.filter(
+        (m) => m.createdAt > lastRead && m.senderId !== currentUser.id
+      ).length;
+    }, 0);
+  }, [currentUser, userChats, chatReads]);
 
   // ----- Reports & moderation -----
   const reportContent = useCallback(
@@ -520,8 +974,9 @@ export function AppProvider({ children }) {
         body: JSON.stringify({ actorId: currentUser.id, targetUserId: id, action: "ban" }),
       });
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isBanned: true } : u)));
+      await createNotification(id, currentUser.id, "user_banned", id, "user");
     },
-    [currentUser]
+    [currentUser, createNotification]
   );
 
   const unbanUser = useCallback(
@@ -551,8 +1006,13 @@ export function AppProvider({ children }) {
           l.id === id ? { ...l, featuredStatus: status, featured: status === "approved" } : l
         )
       );
+      const listing = listings.find((l) => l.id === id);
+      if (listing && listing.sellerId !== currentUser.id) {
+        const notifType = status === "approved" ? "featured_approved" : "featured_rejected";
+        await createNotification(listing.sellerId, currentUser.id, notifType, id, "listing");
+      }
     },
-    [currentUser]
+    [currentUser, listings, createNotification]
   );
 
   const blockUser = useCallback(
@@ -573,8 +1033,10 @@ export function AppProvider({ children }) {
     hydrated,
     users,
     listings,
+    categories,
     chats,
     reports,
+    notifications,
     currentUser,
     getUserById,
     getListingById,
@@ -595,6 +1057,9 @@ export function AppProvider({ children }) {
     sendMessage,
     appendIncomingMessage,
     userChats,
+    unreadMessageCount,
+    markChatAsRead,
+    getUnreadCount,
     reportContent,
     resolveReport,
     banUser,
@@ -602,6 +1067,32 @@ export function AppProvider({ children }) {
     setFeaturedStatus,
     blockUser,
     isBlocked,
+    markNotificationRead,
+    markAllNotificationsRead,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    fetchCategories,
+    announcements,
+    publicAnnouncements,
+    analytics,
+    fetchAdminAnnouncements,
+    fetchAnalytics,
+    createAnnouncement,
+    deactivateAnnouncement,
+    deleteAnnouncement,
+    fetchAnnouncements,
+    lastFilters,
+    setLastFilters,
+    paginatedListings,
+    currentPage,
+    totalCount,
+    paginatedLoading,
+    paginatedHasMore,
+    fetchPaginatedListings,
+    loadMore,
+    resetPagination,
+    ITEMS_PER_PAGE,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

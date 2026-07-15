@@ -19,24 +19,31 @@ import {
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/AuthModal";
 import PostAdModal from "@/components/PostAdModal";
+import NotificationPanel from "@/components/NotificationPanel";
 
 const LOCATIONS = ["All India", "Mumbai, IN", "Pune, IN", "Delhi, IN", "Bengaluru, IN"];
 
 export default function Navbar() {
-  const { currentUser, logout, userChats } = useApp();
+  const { currentUser, logout, userChats, notifications, unreadMessageCount } = useApp();
   const router = useRouter();
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const badgeLabel = unreadCount > 99 ? "99+" : unreadCount;
+  const chatBadgeLabel = unreadMessageCount > 99 ? "99+" : unreadMessageCount;
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("All India");
   const [locOpen, setLocOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef(null);
+  const notifRef = useRef(null);
 
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setProfileOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -135,21 +142,34 @@ export default function Navbar() {
                 aria-label="Messages"
               >
                 <MessageCircle size={20} />
-                {userChats.length > 0 && (
-                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">
-                    {userChats.length}
+                {unreadMessageCount > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-0.5 text-[10px] font-bold text-white">
+                    {chatBadgeLabel}
                   </span>
                 )}
               </Link>
             )}
 
             {currentUser && (
-              <button
-                className="relative rounded-xl p-2.5 text-ink-500 hover:bg-ink-100"
-                aria-label="Notifications"
-              >
-                <Bell size={20} />
-              </button>
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => setNotifOpen((v) => !v)}
+                  className="relative rounded-xl p-2.5 text-ink-500 hover:bg-ink-100"
+                  aria-label="Notifications"
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-0.5 text-[10px] font-bold text-white">
+                      {badgeLabel}
+                    </span>
+                  )}
+                </button>
+                {notifOpen && (
+                  <div className="absolute right-0 z-10 mt-2">
+                    <NotificationPanel />
+                  </div>
+                )}
+              </div>
             )}
 
             {currentUser ? (

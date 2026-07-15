@@ -7,12 +7,14 @@ import { useApp } from "@/context/AppContext";
 import AdminPanel from "@/components/AdminPanel";
 
 export default function AdminPage() {
-  const { currentUser } = useApp();
+  const { currentUser, hydrated } = useApp();
   const router = useRouter();
 
   useEffect(() => {
-    if (!currentUser) router.push("/");
-  }, [currentUser, router]);
+    if (hydrated && !currentUser) router.push("/");
+  }, [currentUser, hydrated, router]);
+
+  if (!hydrated) return null;
 
   if (!currentUser) return null;
 

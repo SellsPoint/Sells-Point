@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import * as Icons from "lucide-react";
 import {
   Sparkles,
@@ -17,8 +17,9 @@ import {
   Star,
   Quote,
   ArrowRight,
+  SlidersHorizontal,
 } from "lucide-react";
-import { useApp, CATEGORIES } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import ProductCard from "@/components/ProductCard";
 import { ProductGridSkeleton } from "@/components/Skeleton";
 import AuthModal from "@/components/AuthModal";
@@ -27,6 +28,8 @@ import Reveal from "@/components/Reveal";
 import TiltCard from "@/components/TiltCard";
 import Marquee from "@/components/Marquee";
 import CountUp from "@/components/CountUp";
+import FilterBar from "@/components/FilterBar";
+import PaginationControls from "@/components/PaginationControls";
 
 const STATS = [
   { label: "Verified sellers", value: 12, suffix: "K+" },
@@ -34,8 +37,6 @@ const STATS = [
   { label: "Cities covered", value: 120, suffix: "+" },
   { label: "Avg. seller rating", value: 4.7, suffix: "★", decimals: 1 },
 ];
-
-const MARQUEE_ITEMS = CATEGORIES.map((c) => c.label);
 
 const STEPS = [
   {
@@ -132,13 +133,38 @@ const TESTIMONIALS = [
 ];
 
 function HomeContent() {
-  const { listings, currentUser, hydrated } = useApp();
-  const params = useSearchParams();
-  const q = (params.get("q") || "").toLowerCase();
-  const loc = params.get("loc") || "All India";
+  const {
+    listings,
+    currentUser,
+    hydrated,
+    categories,
+    paginatedListings,
+    paginatedLoading,
+    paginatedHasMore,
+    currentPage,
+    fetchPaginatedListings,
+    loadMore,
+    resetPagination,
+    setLastFilters,
+  } = useApp();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const q = (searchParams.get("q") || "").toLowerCase();
+  const loc = searchParams.get("loc") || "All India";
   const [activeCategory, setActiveCategory] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const [minPrice, setMinPrice] = useState(searchParams.get("min") ? Number(searchParams.get("min")) : null);
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("max") ? Number(searchParams.get("max")) : null);
+  const [conditions, setConditions] = useState(
+    searchParams.get("cond") ? searchParams.get("cond").split(",").filter(Boolean) : []
+  );
+  const [dateFilter, setDateFilter] = useState(searchParams.get("since") || "all");
+  const [paginationReady, setPaginationReady] = useState(false);
+  const isInitialMount = useRef(true);
+  const initialUrlPage = useRef(Number(searchParams.get("page")) || 1);
 
   const handleStartSelling = () => {
     if (!currentUser) {
@@ -148,21 +174,107 @@ function HomeContent() {
     }
   };
 
+  // Sync filter state to URL params
+  const updateURL = (newFilters) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (newFilters.minPrice) urlParams.set("min", String(newFilters.minPrice));
+    else urlParams.delete("min");
+    
+    if (newFilters.maxPrice) urlParams.set("max", String(newFilters.maxPrice));
+    else urlParams.delete("max");
+    
+    if (newFilters.conditions.length > 0) urlParams.set("cond", newFilters.conditions.join(","));
+    else urlParams.delete("cond");
+    
+    if (newFilters.dateFilter && newFilters.dateFilter !== "all") urlParams.set("since", newFilters.dateFilter);
+    else urlParams.delete("since");
+    
+    const newURL = urlParams.toString() ? `/?${urlParams.toString()}` : "/";
+    router.replace(newURL, { scroll: false });
+  };
+
+  const handleMinPriceChange = (value) => {
+    setMinPrice(value);
+    updateURL({ minPrice: value, maxPrice, conditions, dateFilter });
+  };
+
+  const handleMaxPriceChange = (value) => {
+    setMaxPrice(value);
+    updateURL({ minPrice, maxPrice: value, conditions, dateFilter });
+  };
+
+  const handleConditionToggle = (cond) => {
+    const newConditions = conditions.includes(cond)
+      ? conditions.filter((c) => c !== cond)
+      : [...conditions, cond];
+    setConditions(newConditions);
+    updateURL({ minPrice, maxPrice, conditions: newConditions, dateFilter });
+  };
+
+  const handleDateFilterChange = (value) => {
+    setDateFilter(value);
+    updateURL({ minPrice, maxPrice, conditions, dateFilter: value });
+  };
+
+  const handleClearFilters = () => {
+    setMinPrice(null);
+    setMaxPrice(null);
+    setConditions([]);
+    setDateFilter("all");
+    updateURL({ minPrice: null, maxPrice: null, conditions: [], dateFilter: "all" });
+  };
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const filters = {
+      category: activeCategory || undefined,
+      q: q || undefined,
+      loc: loc || undefined,
+      minPrice: minPrice || undefined,
+      maxPrice: maxPrice || undefined,
+      conditions: conditions.length > 0 ? conditions : undefined,
+      dateFilter: dateFilter !== "all" ? dateFilter : undefined,
+    };
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      if (initialUrlPage.current > 1) {
+        setLastFilters(filters);
+        (async () => {
+          for (let p = 0; p < initialUrlPage.current; p++) {
+            await fetchPaginatedListings({ page: p, filters });
+          }
+        })();
+      } else {
+        resetPagination(filters);
+      }
+    } else {
+      resetPagination(filters);
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set("page", "1");
+      router.replace(`/?${urlParams.toString()}`, { scroll: false });
+    }
+
+    setPaginationReady(true);
+  }, [hydrated, activeCategory, q, loc, minPrice, maxPrice, conditions, dateFilter, resetPagination, fetchPaginatedListings, setLastFilters, router]);
+
+  useEffect(() => {
+    if (!paginationReady) return;
+    const urlPage = currentPage + 1;
+    const currentUrlPage = Number(searchParams.get("page")) || 1;
+    if (urlPage !== currentUrlPage) {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set("page", String(urlPage));
+      router.replace(`/?${urlParams.toString()}`, { scroll: false });
+    }
+  }, [currentPage, paginationReady, searchParams, router]);
+
   const activeListings = useMemo(() => listings.filter((l) => l.status === "active"), [listings]);
 
   const featured = useMemo(
     () => activeListings.filter((l) => l.featured && l.featuredStatus === "approved"),
     [activeListings]
   );
-
-  const filtered = useMemo(() => {
-    return activeListings.filter((l) => {
-      const matchesQuery = q ? l.title.toLowerCase().includes(q) : true;
-      const matchesLoc = loc && loc !== "All India" ? l.location === loc : true;
-      const matchesCategory = activeCategory ? l.category === activeCategory : true;
-      return matchesQuery && matchesLoc && matchesCategory;
-    });
-  }, [activeListings, q, loc, activeCategory]);
 
   return (
     <div>
@@ -248,7 +360,7 @@ function HomeContent() {
         </div>
 
         <div className="relative mt-16 border-t border-white/10 pt-6">
-          <Marquee items={MARQUEE_ITEMS} className="text-ink-300" />
+          <Marquee items={categories.map((c) => c.label)} className="text-ink-300" />
         </div>
       </section>
 
@@ -296,7 +408,7 @@ function HomeContent() {
           >
             All
           </button>
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const Icon = Icons[cat.icon] || Icons.Tag;
             const active = activeCategory === cat.id;
             return (
@@ -317,6 +429,41 @@ function HomeContent() {
             );
           })}
         </div>
+        
+        {/* Filter Toggle Button */}
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100"
+          >
+            <SlidersHorizontal size={16} />
+            Filters
+            {(minPrice || maxPrice || conditions.length > 0 || (dateFilter && dateFilter !== "all")) && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-xs text-white">
+                {(minPrice || maxPrice ? 1 : 0) +
+                  (conditions.length > 0 ? 1 : 0) +
+                  (dateFilter && dateFilter !== "all" ? 1 : 0)}
+              </span>
+            )}
+          </button>
+        </div>
+        
+        {/* Filter Bar */}
+        {showFilters && (
+          <div className="mt-3 rounded-xl border border-ink-200 bg-white p-4 shadow-sm">
+            <FilterBar
+              minPrice={minPrice}
+              maxPrice={maxPrice}
+              conditions={conditions}
+              dateFilter={dateFilter}
+              onMinPriceChange={handleMinPriceChange}
+              onMaxPriceChange={handleMaxPriceChange}
+              onConditionToggle={handleConditionToggle}
+              onDateFilterChange={handleDateFilterChange}
+              onClearAll={handleClearFilters}
+            />
+          </div>
+        )}
       </section>
 
       {!hydrated ? (
@@ -390,23 +537,31 @@ function HomeContent() {
           <TrendingUp size={18} className="text-brand-600" />
           {q ? `Results for "${q}"` : "Explore Listings"}
         </h2>
-        {!hydrated ? (
+        {!paginationReady || (!hydrated && !paginatedListings.length) ? (
           <ProductGridSkeleton />
-        ) : filtered.length === 0 ? (
+        ) : paginatedListings.length === 0 && !paginatedLoading ? (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <div className="icon-tile h-14 w-14 bg-ink-100 text-ink-400">
               <SearchX size={24} />
             </div>
             <p className="text-sm text-ink-500">
-              No listings match your search. Try a different keyword or category.
+              No listings match your search. Try adjusting your filters or category.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {filtered.map((listing) => (
-              <ProductCard key={listing.id} listing={listing} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {paginatedListings.map((listing) => (
+                <ProductCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+            <PaginationControls
+              loading={paginatedLoading}
+              hasMore={paginatedHasMore}
+              onLoadMore={loadMore}
+              count={paginatedListings.length}
+            />
+          </>
         )}
       </section>
 
