@@ -20,3 +20,22 @@ export async function uploadMedia(buffer, resourceType = "auto") {
     stream.end(buffer);
   });
 }
+
+export async function listCategoryImages() {
+  try {
+    const result = await cloudinary.search
+      .expression('resource_type:image AND (folder="sellspoint/Categories" OR asset_folder="sellspoint/Categories" OR public_id:sellspoint/Categories/*)')
+      .sort_by("created_at", "desc")
+      .max_results(100)
+      .execute();
+    return result.resources || [];
+  } catch {
+    const result = await cloudinary.api.resources({
+      type: "upload",
+      resource_type: "image",
+      prefix: "sellspoint/Categories",
+      max_results: 100,
+    });
+    return result.resources || [];
+  }
+}

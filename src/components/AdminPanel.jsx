@@ -25,6 +25,7 @@ import {
   TrendingUp,
   AlertTriangle,
   ExternalLink,
+  Upload,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
@@ -65,6 +66,7 @@ export default function AdminPanel() {
     addCategory,
     updateCategory,
     deleteCategory,
+    fetchCategories,
     analytics,
     announcements,
     fetchAnalytics,
@@ -74,8 +76,11 @@ export default function AdminPanel() {
   } = useApp();
   const [tab, setTab] = useState("listings");
   const [editingCat, setEditingCat] = useState(null);
-  const [newCat, setNewCat] = useState({ id: "", label: "", icon: "Tag" });
+  const [newCat, setNewCat] = useState({ id: "", label: "", icon: "Tag", image_url: "" });
   const [catError, setCatError] = useState("");
+  const [catSyncing, setCatSyncing] = useState(false);
+  const [catSyncMessage, setCatSyncMessage] = useState("");
+  const [catUploading, setCatUploading] = useState(null);
 
   const [monitoredChats, setMonitoredChats] = useState([]);
   const [chatsLoading, setChatsLoading] = useState(false);
@@ -415,7 +420,7 @@ export default function AdminPanel() {
               </div>
             )}
             <div className="card p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
                 <input
                   value={newCat.id}
                   onChange={(e) => setNewCat((p) => ({ ...p, id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))}
@@ -434,6 +439,36 @@ export default function AdminPanel() {
                   placeholder="Icon (e.g. Smartphone)"
                   className="input-field"
                 />
+                <input
+                  value={newCat.image_url}
+                  onChange={(e) => setNewCat((p) => ({ ...p, image_url: e.target.value }))}
+                  placeholder="Image URL (optional)"
+                  className="input-field"
+                />
+                <label className="btn-secondary flex cursor-pointer items-center justify-center gap-2">
+                  <Upload size={16} /> {catUploading === "new" ? "Uploading..." : "Upload"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={catUploading !== null}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setCatError("");
+                      setCatUploading("new");
+                      try {
+                        const url = await uploadCategoryImage(file);
+                        setNewCat((prev) => ({ ...prev, image_url: url }));
+                      } catch (error) {
+                        setCatError(error.message);
+                      } finally {
+                        setCatUploading(null);
+                        event.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
                 <button
                   onClick={async () => {
                     setCatError("");
@@ -443,7 +478,7 @@ export default function AdminPanel() {
                     }
                     const result = await addCategory(newCat);
                     if (result.success) {
-                      setNewCat({ id: "", label: "", icon: "Tag" });
+                      setNewCat({ id: "", label: "", icon: "Tag", image_url: "" });
                     } else {
                       setCatError(result.error || "Failed to add category.");
                     }
@@ -453,18 +488,72 @@ export default function AdminPanel() {
                   <Plus size={16} /> Add
                 </button>
               </div>
+              {newCat.image_url && (
+                <div className="mt-3 flex items-center gap-3 rounded-xl bg-ink-50 p-3">
+                  <img src={newCat.image_url} alt="" className="h-14 w-14 rounded-lg object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => setNewCat((prev) => ({ ...prev, image_url: "" }))}
+                    className="text-sm font-semibold text-red-500"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 font-display font-bold text-ink-900">All Categories</h3>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display font-bold text-ink-900">All Categories</h3>
+                {catSyncMessage && <p className="mt-1 text-xs text-brand-600">{catSyncMessage}</p>}
+              </div>
+              <button
+                onClick={async () => {
+                  setCatError("");
+                  setCatSyncMessage("");
+                  setCatSyncing(true);
+                  try {
+                    const res = await fetch("/api/admin/categories/sync-cloudinary", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ actorId: currentUser.id }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) {
+                      setCatError(json.error || "Cloudinary sync failed.");
+                      return;
+                    }
+                    await fetchCategories();
+                    const skippedPreview = (json.skipped || [])
+                      .slice(0, 3)
+                      .map((item) => item.slug || item.categoryId)
+                      .join(", ");
+                    setCatSyncMessage(
+                      `Synced ${json.updated?.length || 0} image(s). Skipped ${json.skipped?.length || 0}.${
+                        skippedPreview ? ` Skipped: ${skippedPreview}` : ""
+                      }`
+                    );
+                  } finally {
+                    setCatSyncing(false);
+                  }
+                }}
+                disabled={catSyncing}
+                className="btn-secondary px-3 py-2 text-sm"
+              >
+                <Sparkles size={15} /> {catSyncing ? "Syncing..." : "Sync Cloudinary Images"}
+              </button>
+            </div>
             <div className="overflow-hidden rounded-2xl border border-ink-100">
               <table className="w-full text-left text-sm">
                 <thead className="bg-ink-50 text-xs uppercase text-ink-500">
                   <tr>
+                    <th className="px-4 py-3">Image</th>
                     <th className="px-4 py-3">ID</th>
                     <th className="px-4 py-3">Label</th>
                     <th className="px-4 py-3">Icon</th>
+                    <th className="px-4 py-3">Image URL</th>
                     <th className="px-4 py-3">Order</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -474,6 +563,13 @@ export default function AdminPanel() {
                     <tr key={cat.id}>
                       {editingCat === cat.id ? (
                         <>
+                          <td className="px-4 py-3">
+                            {cat.imageUrl ? (
+                              <img src={cat.imageUrl} alt="" className="h-10 w-10 rounded-lg object-contain" />
+                            ) : (
+                              <span className="text-xs text-ink-300">None</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-ink-400">{cat.id}</td>
                           <td className="px-4 py-3">
                             <input
@@ -490,6 +586,40 @@ export default function AdminPanel() {
                             />
                           </td>
                           <td className="px-4 py-3">
+                            <div className="flex min-w-56 items-center gap-2">
+                              <input
+                                defaultValue={cat.imageUrl}
+                                id={`edit-image-${cat.id}`}
+                                className="input-field py-1 text-sm"
+                              />
+                              <label className="cursor-pointer rounded-lg border border-ink-200 px-2 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+                                {catUploading === cat.id ? "..." : "Upload"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={catUploading !== null}
+                                  onChange={async (event) => {
+                                    const file = event.target.files?.[0];
+                                    if (!file) return;
+                                    setCatError("");
+                                    setCatUploading(cat.id);
+                                    try {
+                                      const url = await uploadCategoryImage(file);
+                                      const input = document.getElementById(`edit-image-${cat.id}`);
+                                      if (input) input.value = url;
+                                    } catch (error) {
+                                      setCatError(error.message);
+                                    } finally {
+                                      setCatUploading(null);
+                                      event.target.value = "";
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
                             <input
                               defaultValue={cat.sortOrder ?? 0}
                               id={`edit-order-${cat.id}`}
@@ -504,8 +634,9 @@ export default function AdminPanel() {
                                   setCatError("");
                                   const label = document.getElementById(`edit-label-${cat.id}`).value;
                                   const icon = document.getElementById(`edit-icon-${cat.id}`).value;
+                                  const image_url = document.getElementById(`edit-image-${cat.id}`).value;
                                   const sort_order = Number(document.getElementById(`edit-order-${cat.id}`).value);
-                                  const result = await updateCategory({ id: cat.id, label, icon, sort_order });
+                                  const result = await updateCategory({ id: cat.id, label, icon, image_url, sort_order });
                                   if (result.success) {
                                     setEditingCat(null);
                                   } else {
@@ -527,9 +658,17 @@ export default function AdminPanel() {
                         </>
                       ) : (
                         <>
+                          <td className="px-4 py-3">
+                            {cat.imageUrl ? (
+                              <img src={cat.imageUrl} alt="" className="h-10 w-10 rounded-lg object-contain" />
+                            ) : (
+                              <span className="text-xs text-ink-300">None</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 font-mono text-xs text-ink-500">{cat.id}</td>
                           <td className="px-4 py-3 font-semibold text-ink-900">{cat.label}</td>
                           <td className="px-4 py-3 text-ink-500">{cat.icon}</td>
+                          <td className="max-w-xs truncate px-4 py-3 text-ink-500">{cat.imageUrl || "—"}</td>
                           <td className="px-4 py-3 text-ink-500">{cat.sortOrder ?? 0}</td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -924,4 +1063,16 @@ export default function AdminPanel() {
       )}
     </div>
   );
+}
+
+async function uploadCategoryImage(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error || "Upload failed");
+  }
+  const json = await res.json();
+  return json.url;
 }

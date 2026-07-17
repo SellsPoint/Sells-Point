@@ -26,6 +26,7 @@ function mapCategory(row) {
     id: row.id,
     label: row.label,
     icon: row.icon,
+    imageUrl: row.image_url || "",
     sortOrder: row.sort_order,
   };
 }

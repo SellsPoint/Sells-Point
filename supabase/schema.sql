@@ -107,6 +107,7 @@ create table if not exists categories (
   id text primary key,
   label text not null,
   icon text not null default 'Tag',
+  image_url text,
   sort_order integer not null default 0
 );
 

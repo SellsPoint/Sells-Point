@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ShieldCheck, MessageCircle, Sparkles } from "lucide-react";
+import { ShieldCheck, MessageCircle } from "lucide-react";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
 import Navbar from "@/components/Navbar";
+import BrandLogo from "@/components/BrandLogo";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME || "Sells Point";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -23,15 +24,8 @@ export default function RootLayout({ children }) {
           <main className="min-h-screen">{children}</main>
           <footer className="border-t border-ink-100 bg-white">
             <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-white">
-                    <Sparkles size={16} />
-                  </div>
-                  <span className="font-display text-base font-extrabold text-ink-900">
-                    {appName}
-                  </span>
-                </div>
+            <div>
+                <BrandLogo />
                 <p className="mt-3 max-w-xs text-sm text-ink-500">
                   A premium marketplace to buy &amp; sell mobiles, vehicles, furniture and more —
                   with verified sellers and built-in chat.

@@ -19,7 +19,7 @@ export async function POST(request) {
   }
 
   if (action === "create") {
-    const { id, label, icon, sort_order } = category;
+    const { id, label, icon, image_url, sort_order } = category;
     if (!id || !label) {
       return NextResponse.json({ error: "id and label are required" }, { status: 400 });
     }
@@ -27,6 +27,7 @@ export async function POST(request) {
       id,
       label,
       icon: icon || "Tag",
+      image_url: image_url || null,
       sort_order: sort_order ?? 0,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -34,13 +35,14 @@ export async function POST(request) {
   }
 
   if (action === "update") {
-    const { id, label, icon, sort_order } = category;
+    const { id, label, icon, image_url, sort_order } = category;
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
     const updates = {};
     if (label !== undefined) updates.label = label;
     if (icon !== undefined) updates.icon = icon;
+    if (image_url !== undefined) updates.image_url = image_url;
     if (sort_order !== undefined) updates.sort_order = sort_order;
     const { error } = await supabaseAdmin.from("categories").update(updates).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

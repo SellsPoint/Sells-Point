@@ -14,12 +14,12 @@ import {
   LayoutDashboard,
   ShieldCheck,
   LogOut,
-  Sparkles,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/AuthModal";
 import PostAdModal from "@/components/PostAdModal";
 import NotificationPanel from "@/components/NotificationPanel";
+import BrandLogo from "@/components/BrandLogo";
 
 const LOCATIONS = ["All India", "Mumbai, IN", "Pune, IN", "Delhi, IN", "Bengaluru, IN"];
 
@@ -111,12 +111,7 @@ export default function Navbar() {
       >
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-glow">
-              <Sparkles size={18} />
-            </div>
-            <span className="font-display text-lg font-extrabold tracking-tight text-ink-900">
-              Sells<span className="text-brand-600">Point</span>
-            </span>
+            <BrandLogo compact />
           </Link>
 
           <form

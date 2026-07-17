@@ -17,6 +17,8 @@ import {
   Star,
   Quote,
   ArrowRight,
+  MapPin,
+  ChevronDown,
   SlidersHorizontal,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
@@ -132,6 +134,23 @@ const TESTIMONIALS = [
   },
 ];
 
+const HOME_CATEGORY_LIMIT = 5;
+
+const QUICK_BENEFITS = [
+  { icon: CheckCircle2, title: "Sell Old", description: "Get instant payment" },
+  { icon: Sparkles, title: "Buy Refurbished", description: "Quality goods, great prices" },
+  { icon: ShieldCheck, title: "Safe & Secure", description: "100% secure transactions" },
+  { icon: MapPin, title: "Doorstep Pickup", description: "Hassle-free experience" },
+];
+
+const TRUST_BENEFITS = [
+  { icon: ShieldCheck, title: "Safe & Secure", description: "Report and block controls" },
+  { icon: MessageCircle, title: "Built-in Chat", description: "Connect without sharing numbers" },
+  { icon: Camera, title: "Real Listings", description: "Photos and video support" },
+  { icon: MapPin, title: "Nearby Discovery", description: "Find listings around you" },
+  { icon: CheckCircle2, title: "Fresh Inventory", description: "Expiry-aware active listings" },
+];
+
 function HomeContent() {
   const {
     listings,
@@ -169,6 +188,7 @@ function HomeContent() {
   );
   const [radiusKm, setRadiusKm] = useState(searchParams.get("radius") ? Number(searchParams.get("radius")) : 25);
   const [paginationReady, setPaginationReady] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const isInitialMount = useRef(true);
   const initialUrlPage = useRef(Number(searchParams.get("page")) || 1);
 
@@ -320,9 +340,71 @@ function HomeContent() {
     () => activeListings.filter((l) => l.featured && l.featuredStatus === "approved"),
     [activeListings]
   );
+  const topDeals = useMemo(
+    () => (featured.length > 0 ? featured : activeListings).slice(0, 5),
+    [featured, activeListings]
+  );
+  const canExpandCategories = categories.length > HOME_CATEGORY_LIMIT;
+  const visibleHomeCategories =
+    showAllCategories && canExpandCategories ? categories : categories.slice(0, HOME_CATEGORY_LIMIT);
 
   return (
     <div>
+      <section className="relative min-h-[620px] overflow-hidden bg-white sm:min-h-[560px] lg:min-h-[520px]">
+        <div className="absolute inset-0">
+          <div className="relative h-full w-full">
+            <img
+              src="/assets/home/marketplace-hero.png"
+              alt="Phones, laptops, tablets, watches, and headphones available on Sells Point"
+              className="absolute inset-0 h-full w-full object-cover object-[72%_center] lg:object-center"
+            />
+          </div>
+        </div>
+        <div className="relative z-10 mx-auto flex min-h-[620px] max-w-7xl items-center px-4 py-12 sm:min-h-[560px] sm:px-8 lg:min-h-[520px] lg:px-12">
+          <div className="max-w-xl">
+                <span className="badge-brand">
+                  <Sparkles size={12} /> Trusted marketplace
+                </span>
+                <h1 className="mt-5 max-w-lg font-display text-4xl font-extrabold leading-[1.05] text-ink-950 sm:text-5xl lg:text-6xl">
+                  Buy smart.
+                  <span className="block text-brand-600">Sell easy.</span>
+                </h1>
+                <p className="mt-5 max-w-md text-base leading-relaxed text-ink-600 sm:text-lg">
+                  Find great value in pre-loved products or sell your old device with people you can trust.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button onClick={handleStartSelling} className="btn-primary">
+                    Sell Your Device <ArrowRight size={16} />
+                  </button>
+                  <a href="#explore" className="btn-secondary">Browse Listings</a>
+                  <button type="button" onClick={handleUseNearby} className="btn-ghost">
+                    <MapPin size={16} /> Use my location
+                  </button>
+                </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white px-4 py-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+          {QUICK_BENEFITS.map((benefit) => {
+            const Icon = benefit.icon;
+            return (
+              <div key={benefit.title} className="flex items-center gap-3 px-2 py-2 sm:px-4">
+                <span className="icon-tile h-10 w-10 bg-brand-50 text-brand-600">
+                  <Icon size={19} />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-ink-900">{benefit.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-500">{benefit.description}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {false && (
       <section className="relative overflow-hidden bg-hero-gradient px-4 py-24 text-white lg:px-8 lg:py-32">
         <div className="bg-dot-grid pointer-events-none absolute inset-0 opacity-60" />
         <div className="pointer-events-none absolute -right-20 top-0 hidden h-96 w-96 rounded-full bg-brand-500/25 blur-3xl lg:block animate-float" />
@@ -416,9 +498,100 @@ function HomeContent() {
           <Marquee items={categories.map((c) => c.label)} className="text-ink-300" />
         </div>
       </section>
+      )}
 
       <Reveal>
         <section className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
+          <div className="mb-10">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="font-display text-xl font-bold text-ink-900">Shop By Category</h2>
+              {canExpandCategories && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCategories((value) => !value)}
+                  aria-controls="home-category-list"
+                  aria-expanded={showAllCategories}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+                >
+                  {showAllCategories ? "Show Less" : "Show More"}
+                  <ChevronDown
+                    size={16}
+                    aria-hidden="true"
+                    className={`transition-transform ${showAllCategories ? "rotate-180" : ""}`}
+                  />
+                </button>
+              )}
+            </div>
+            <div
+              id="home-category-list"
+              className={`grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-5 lg:gap-x-6 ${
+                showAllCategories ? "lg:grid-cols-10" : "lg:grid-cols-5"
+              }`}
+            >
+              {visibleHomeCategories.map((cat) => {
+                const Icon = Icons[cat.icon] || Icons.Tag;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className="group flex flex-col items-center gap-2 text-center"
+                  >
+                    <span className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-50 ring-1 ring-inset ring-ink-100 transition-transform group-hover:-translate-y-0.5">
+                      {cat.imageUrl ? (
+                        <img src={cat.imageUrl} alt="" className="h-14 w-14 object-contain" />
+                      ) : (
+                        <Icon size={28} className="text-brand-600" />
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold text-ink-700">{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {topDeals.length > 0 && (
+            <section className="border-t border-ink-100 pt-10">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2 className="section-heading">
+                  <TrendingUp size={18} className="text-brand-600" /> Top Deals for You
+                </h2>
+                <a href="#explore" className="text-sm font-semibold text-brand-700 hover:text-brand-800">
+                  View All Deals <ArrowRight size={15} className="inline" />
+                </a>
+              </div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {topDeals.map((listing) => (
+                  <ProductCard key={listing.id} listing={listing} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="grid gap-4 border-t border-ink-100 pt-10 sm:grid-cols-3">
+            <div className="rounded-2xl bg-brand-50 p-5">
+              <div className="flex items-center gap-3 text-brand-700">
+                <span className="icon-tile h-10 w-10 bg-white"><Sparkles size={18} /></span>
+                <p className="font-display font-bold">Sell in 60 Seconds</p>
+              </div>
+              <p className="mt-3 text-sm text-ink-600">Get an instant quote and reach serious buyers quickly.</p>
+            </div>
+            <div className="rounded-2xl bg-sky-50 p-5">
+              <div className="flex items-center gap-3 text-sky-700">
+                <span className="icon-tile h-10 w-10 bg-white"><ShieldCheck size={18} /></span>
+                <p className="font-display font-bold">Instant Payment</p>
+              </div>
+              <p className="mt-3 text-sm text-ink-600">Keep every step clear with trusted in-app conversations.</p>
+            </div>
+            <div className="rounded-2xl bg-amber-50 p-5">
+              <div className="flex items-center gap-3 text-amber-700">
+                <span className="icon-tile h-10 w-10 bg-white"><MapPin size={18} /></span>
+                <p className="font-display font-bold">Free Pickup</p>
+              </div>
+              <p className="mt-3 text-sm text-ink-600">Arrange a safe handoff that works for both sides.</p>
+            </div>
+          </section>
+
           <h2 className="section-heading mb-8 justify-center text-center sm:justify-start sm:text-left">
             How Sells Point Works
           </h2>
@@ -441,6 +614,59 @@ function HomeContent() {
                     </div>
                     <p className="mt-3 font-display font-bold text-ink-900">{step.title}</p>
                     <p className="mt-1 text-sm text-ink-500">{step.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </Reveal>
+
+
+      <Reveal>
+        <section className="w-full overflow-hidden bg-white">
+          <img
+            src="/assets/home/how-sellspoint-works.png"
+            alt="How Sells Point works"
+            className="block h-auto w-full"
+          />
+        </section>
+      </Reveal>
+
+      <Reveal>
+        <section className="relative w-full overflow-hidden bg-ink-900">
+          <img
+            src="/assets/home/ready-to-declutter.png"
+            alt="Ready to declutter or find something amazing? Join thousands of buyers and sellers on Sells Point."
+            className="block h-[155px] w-full object-cover object-[45%_center] sm:h-[220px] lg:h-auto lg:object-contain"
+          />
+          <button
+            type="button"
+            onClick={handleStartSelling}
+            className="btn-primary absolute bottom-5 right-5 px-4 py-2.5 text-sm sm:bottom-8 sm:right-8 sm:px-6 sm:py-3"
+          >
+            Post Your Ad Now <ArrowRight size={16} />
+          </button>
+        </section>
+      </Reveal>
+
+      <Reveal>
+        <section className="w-full bg-ink-50 px-4 py-10 lg:px-8">
+          <div className="mx-auto mb-6 max-w-7xl">
+            <h2 className="section-heading">Why Choose Sells Point?</h2>
+            <p className="mt-2 text-sm text-ink-500">Simple tools designed to make buying and selling feel safer.</p>
+          </div>
+          <div className="mx-auto grid max-w-7xl gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">
+            {TRUST_BENEFITS.map((benefit) => {
+              const Icon = benefit.icon;
+              return (
+                <div key={benefit.title} className="flex items-start gap-3 px-2 py-2 sm:px-4">
+                  <span className="icon-tile h-10 w-10 bg-white text-brand-600">
+                    <Icon size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-ink-900">{benefit.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-500">{benefit.description}</p>
                   </div>
                 </div>
               );
@@ -475,7 +701,11 @@ function HomeContent() {
                 }`}
               >
                 <span className={`icon-tile h-7 w-7 ${active ? "bg-white/20" : "bg-ink-100"}`}>
-                  <Icon size={14} />
+                  {cat.imageUrl ? (
+                    <img src={cat.imageUrl} alt="" className="h-5 w-5 object-contain" />
+                  ) : (
+                    <Icon size={14} />
+                  )}
                 </span>
                 {cat.label}
               </button>
@@ -530,7 +760,7 @@ function HomeContent() {
           <ProductGridSkeleton count={4} />
         </section>
       ) : (
-        featured.length > 0 && (
+        false && featured.length > 0 && (
           <section className="border-y border-amber-100 bg-gradient-to-b from-amber-50/60 to-transparent">
             <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
               <div className="mb-4 flex items-center justify-between">
@@ -549,6 +779,20 @@ function HomeContent() {
         )
       )}
 
+      {false && (
+      <Reveal>
+        <section className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
+          <img
+            src="/assets/home/how-sellspoint-works.png"
+            alt="How Sells Point works"
+            className="w-full rounded-2xl object-cover shadow-soft"
+          />
+        </section>
+      </Reveal>
+
+      )}
+
+      {false && (
       <Reveal>
         <section className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
           <div className="text-center">
@@ -590,6 +834,7 @@ function HomeContent() {
           </div>
         </section>
       </Reveal>
+      )}
 
       <section className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
         <h2 className="section-heading mb-4">
