@@ -3,8 +3,8 @@
 import { MessageCircle, Heart, ShoppingCart, Tag, Shield, Megaphone } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
-function getNotificationIcon(type) {
-  switch (type) {
+function getNotificationIcon(notification) {
+  switch (notification.type) {
     case "message":
       return <MessageCircle size={16} className="text-blue-500" />;
     case "favorite":
@@ -14,20 +14,29 @@ function getNotificationIcon(type) {
     case "price_drop":
       return <Tag size={16} className="text-orange-500" />;
     case "admin":
-    case "featured_approved":
-    case "featured_rejected":
-    case "user_banned":
       return notification.entityType === "announcement"
         ? <Megaphone size={16} className="text-amber-500" />
         : <Shield size={16} className="text-purple-500" />;
+    case "featured_approved":
+    case "featured_rejected":
+    case "user_banned":
+      return <Shield size={16} className="text-purple-500" />;
     default:
       return <MessageCircle size={16} className="text-ink-400" />;
   }
 }
 
-function getNotificationText(notification, getUserById, getListingById) {
+function getAnnouncementById(announcements, id) {
+  return announcements.find((announcement) => announcement.id === id) || null;
+}
+
+function getNotificationText(notification, getUserById, getListingById, publicAnnouncements) {
   const actor = notification.actorId ? getUserById(notification.actorId) : null;
   const listing = notification.entityType === "listing" ? getListingById(notification.entityId) : null;
+  const announcement =
+    notification.entityType === "announcement"
+      ? getAnnouncementById(publicAnnouncements, notification.entityId)
+      : null;
 
   switch (notification.type) {
     case "message":
@@ -49,8 +58,8 @@ function getNotificationText(notification, getUserById, getListingById) {
     case "user_banned":
       return "Your account has been suspended by admin";
     case "admin":
-      return notification.entityType === "announcement"
-        ? "New platform announcement"
+      return notification.entityType === "announcement" && announcement
+        ? announcement.title
         : "Admin notification";
     default:
       return "New notification";
@@ -73,7 +82,14 @@ function formatRelativeTime(timestamp) {
 }
 
 export default function NotificationPanel() {
-  const { notifications, getUserById, getListingById, markNotificationRead, markAllNotificationsRead } = useApp();
+  const {
+    notifications,
+    publicAnnouncements,
+    getUserById,
+    getListingById,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useApp();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -97,30 +113,42 @@ export default function NotificationPanel() {
           </div>
         ) : (
           <div className="divide-y divide-ink-100">
-            {notifications.map((notification) => (
-              <button
-                key={notification.id}
-                onClick={() => !notification.read && markNotificationRead(notification.id)}
-                className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-ink-50 ${
-                  !notification.read ? "bg-brand-50/30" : ""
-                }`}
-              >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-100">
-                  {getNotificationIcon(notification.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${!notification.read ? "font-semibold text-ink-900" : "text-ink-700"}`}>
-                    {getNotificationText(notification, getUserById, getListingById)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-ink-500">
-                    {formatRelativeTime(notification.createdAt)}
-                  </p>
-                </div>
-                {!notification.read && (
-                  <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-600" />
-                )}
-              </button>
-            ))}
+            {notifications.map((notification) => {
+              const announcement =
+                notification.entityType === "announcement"
+                  ? getAnnouncementById(publicAnnouncements, notification.entityId)
+                  : null;
+
+              return (
+                <button
+                  key={notification.id}
+                  onClick={() => !notification.read && markNotificationRead(notification.id)}
+                  className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-ink-50 ${
+                    !notification.read ? "bg-brand-50/30" : ""
+                  }`}
+                >
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-100">
+                    {getNotificationIcon(notification)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${!notification.read ? "font-semibold text-ink-900" : "text-ink-700"}`}>
+                      {getNotificationText(notification, getUserById, getListingById, publicAnnouncements)}
+                    </p>
+                    {announcement?.body && (
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-500">
+                        {announcement.body}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-xs text-ink-500">
+                      {formatRelativeTime(notification.createdAt)}
+                    </p>
+                  </div>
+                  {!notification.read && (
+                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-600" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

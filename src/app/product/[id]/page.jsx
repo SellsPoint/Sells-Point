@@ -52,6 +52,7 @@ export default function ProductPage({ params }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportSent, setReportSent] = useState(false);
+  const [chatError, setChatError] = useState("");
   const [fetchedListing, setFetchedListing] = useState(null);
   const [fetching, setFetching] = useState(false);
 
@@ -80,9 +81,13 @@ export default function ProductPage({ params }) {
               images: data.images || [],
               video: data.video_url || null,
               location: data.location || "",
+              latitude: data.latitude,
+              longitude: data.longitude,
               featured: data.featured,
               featuredStatus: data.featured_status || "none",
               status: data.status || "active",
+              expiresAt: data.expires_at ? new Date(data.expires_at).getTime() : null,
+              moderationNote: data.moderation_note || "",
               views: data.views || 0,
               createdAt: data.created_at ? new Date(data.created_at).getTime() : Date.now(),
             });
@@ -137,12 +142,18 @@ export default function ProductPage({ params }) {
   const images = listing.images?.length ? listing.images : [];
 
   const handleChat = async () => {
+    setChatError("");
     if (!currentUser) {
       router.push("/");
       return;
     }
+    if (!currentUser.verified) {
+      setChatError("Verify your phone number before starting a chat.");
+      return;
+    }
     const chat = await getOrCreateChat(listing.id, listing.sellerId);
     if (chat) router.push("/chat");
+    else setChatError("Unable to start this chat. Check your account verification and try again.");
   };
 
   const submitReport = () => {
@@ -281,6 +292,11 @@ export default function ProductPage({ params }) {
                   <Heart size={16} fill={fav ? "currentColor" : "none"} className={fav ? "text-red-500" : ""} />
                   {fav ? "Saved to favorites" : "Save to favorites"}
                 </button>
+              )}
+              {chatError && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {chatError}
+                </p>
               )}
             </div>
           </div>

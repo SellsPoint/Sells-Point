@@ -18,7 +18,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { actorId, reportId, action } = await request.json();
+  const { actorId, reportId, action, note = "" } = await request.json();
 
   if (!(await isAdminActor(actorId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -30,9 +30,21 @@ export async function POST(request) {
 
   const { error } = await supabaseAdmin
     .from("reports")
-    .update({ status: "resolved" })
+    .update({
+      status: "resolved",
+      resolution_note: note,
+      resolved_by: actorId,
+      resolved_at: new Date().toISOString(),
+    })
     .eq("id", reportId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await supabaseAdmin.from("moderation_logs").insert({
+    actor_id: actorId,
+    target_type: "report",
+    target_id: reportId,
+    action,
+    note,
+  });
   return NextResponse.json({ success: true });
 }

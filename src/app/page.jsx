@@ -151,7 +151,7 @@ function HomeContent() {
   const router = useRouter();
   const q = (searchParams.get("q") || "").toLowerCase();
   const loc = searchParams.get("loc") || "All India";
-  const [activeCategory, setActiveCategory] = useState(null);
+  const [activeCategory, setActiveCategory] = useState(searchParams.get("category") || null);
   const [authOpen, setAuthOpen] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -162,6 +162,12 @@ function HomeContent() {
     searchParams.get("cond") ? searchParams.get("cond").split(",").filter(Boolean) : []
   );
   const [dateFilter, setDateFilter] = useState(searchParams.get("since") || "all");
+  const [nearby, setNearby] = useState(
+    searchParams.get("lat") && searchParams.get("lng")
+      ? { latitude: Number(searchParams.get("lat")), longitude: Number(searchParams.get("lng")) }
+      : null
+  );
+  const [radiusKm, setRadiusKm] = useState(searchParams.get("radius") ? Number(searchParams.get("radius")) : 25);
   const [paginationReady, setPaginationReady] = useState(false);
   const isInitialMount = useRef(true);
   const initialUrlPage = useRef(Number(searchParams.get("page")) || 1);
@@ -189,6 +195,16 @@ function HomeContent() {
     
     if (newFilters.dateFilter && newFilters.dateFilter !== "all") urlParams.set("since", newFilters.dateFilter);
     else urlParams.delete("since");
+
+    if (newFilters.nearby) {
+      urlParams.set("lat", String(newFilters.nearby.latitude));
+      urlParams.set("lng", String(newFilters.nearby.longitude));
+      urlParams.set("radius", String(newFilters.radiusKm || radiusKm || 25));
+    } else {
+      urlParams.delete("lat");
+      urlParams.delete("lng");
+      urlParams.delete("radius");
+    }
     
     const newURL = urlParams.toString() ? `/?${urlParams.toString()}` : "/";
     router.replace(newURL, { scroll: false });
@@ -196,12 +212,12 @@ function HomeContent() {
 
   const handleMinPriceChange = (value) => {
     setMinPrice(value);
-    updateURL({ minPrice: value, maxPrice, conditions, dateFilter });
+    updateURL({ minPrice: value, maxPrice, conditions, dateFilter, nearby, radiusKm });
   };
 
   const handleMaxPriceChange = (value) => {
     setMaxPrice(value);
-    updateURL({ minPrice, maxPrice: value, conditions, dateFilter });
+    updateURL({ minPrice, maxPrice: value, conditions, dateFilter, nearby, radiusKm });
   };
 
   const handleConditionToggle = (cond) => {
@@ -209,12 +225,38 @@ function HomeContent() {
       ? conditions.filter((c) => c !== cond)
       : [...conditions, cond];
     setConditions(newConditions);
-    updateURL({ minPrice, maxPrice, conditions: newConditions, dateFilter });
+    updateURL({ minPrice, maxPrice, conditions: newConditions, dateFilter, nearby, radiusKm });
   };
 
   const handleDateFilterChange = (value) => {
     setDateFilter(value);
-    updateURL({ minPrice, maxPrice, conditions, dateFilter: value });
+    updateURL({ minPrice, maxPrice, conditions, dateFilter: value, nearby, radiusKm });
+  };
+
+  const handleUseNearby = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextNearby = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setNearby(nextNearby);
+        updateURL({ minPrice, maxPrice, conditions, dateFilter, nearby: nextNearby, radiusKm });
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleClearNearby = () => {
+    setNearby(null);
+    updateURL({ minPrice, maxPrice, conditions, dateFilter, nearby: null, radiusKm });
+  };
+
+  const handleRadiusChange = (value) => {
+    setRadiusKm(value);
+    updateURL({ minPrice, maxPrice, conditions, dateFilter, nearby, radiusKm: value });
   };
 
   const handleClearFilters = () => {
@@ -222,7 +264,8 @@ function HomeContent() {
     setMaxPrice(null);
     setConditions([]);
     setDateFilter("all");
-    updateURL({ minPrice: null, maxPrice: null, conditions: [], dateFilter: "all" });
+    setNearby(null);
+    updateURL({ minPrice: null, maxPrice: null, conditions: [], dateFilter: "all", nearby: null, radiusKm });
   };
 
   useEffect(() => {
@@ -235,6 +278,8 @@ function HomeContent() {
       maxPrice: maxPrice || undefined,
       conditions: conditions.length > 0 ? conditions : undefined,
       dateFilter: dateFilter !== "all" ? dateFilter : undefined,
+      nearby,
+      radiusKm,
     };
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -256,7 +301,7 @@ function HomeContent() {
     }
 
     setPaginationReady(true);
-  }, [hydrated, activeCategory, q, loc, minPrice, maxPrice, conditions, dateFilter, resetPagination, fetchPaginatedListings, setLastFilters, router]);
+  }, [hydrated, activeCategory, q, loc, minPrice, maxPrice, conditions, dateFilter, nearby, radiusKm, resetPagination, fetchPaginatedListings, setLastFilters, router]);
 
   useEffect(() => {
     if (!paginationReady) return;
@@ -328,12 +373,20 @@ function HomeContent() {
 
           <div className="relative hidden lg:block lg:pb-10 lg:pt-6">
             <div className="absolute right-6 top-10 w-72 -rotate-6 rounded-3xl bg-white/5 p-4 opacity-70 blur-[1px] ring-1 ring-white/10">
-              <div className="aspect-[4/3] w-full rounded-2xl bg-gradient-to-br from-purple-400/30 to-ink-900/40" />
+              <img
+                src="https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=1200&q=80"
+                alt=""
+                className="aspect-[4/3] w-full rounded-2xl object-cover"
+              />
             </div>
 
             <TiltCard className="relative ml-auto w-80 cursor-pointer">
               <div className="glass-dark rounded-3xl p-4 shadow-glow">
-                <div className="aspect-[4/3] w-full rounded-2xl bg-gradient-to-br from-brand-400/40 via-brand-600/30 to-ink-900/40" />
+                <img
+                  src="https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=1200&q=80"
+                  alt="iPhone 14 Pro"
+                  className="aspect-[4/3] w-full rounded-2xl object-cover"
+                />
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-display font-bold text-white">iPhone 14 Pro</p>
@@ -438,11 +491,12 @@ function HomeContent() {
           >
             <SlidersHorizontal size={16} />
             Filters
-            {(minPrice || maxPrice || conditions.length > 0 || (dateFilter && dateFilter !== "all")) && (
+            {(minPrice || maxPrice || conditions.length > 0 || (dateFilter && dateFilter !== "all") || nearby) && (
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-xs text-white">
                 {(minPrice || maxPrice ? 1 : 0) +
                   (conditions.length > 0 ? 1 : 0) +
-                  (dateFilter && dateFilter !== "all" ? 1 : 0)}
+                  (dateFilter && dateFilter !== "all" ? 1 : 0) +
+                  (nearby ? 1 : 0)}
               </span>
             )}
           </button>
@@ -456,10 +510,15 @@ function HomeContent() {
               maxPrice={maxPrice}
               conditions={conditions}
               dateFilter={dateFilter}
+              nearby={nearby}
+              radiusKm={radiusKm}
               onMinPriceChange={handleMinPriceChange}
               onMaxPriceChange={handleMaxPriceChange}
               onConditionToggle={handleConditionToggle}
               onDateFilterChange={handleDateFilterChange}
+              onUseNearby={handleUseNearby}
+              onClearNearby={handleClearNearby}
+              onRadiusChange={handleRadiusChange}
               onClearAll={handleClearFilters}
             />
           </div>

@@ -100,7 +100,7 @@ export default function ProductCard({ listing }) {
         <div className="mt-2 flex items-center justify-between text-xs text-ink-500">
           <span className="badge-ink">{listing.condition}</span>
           <span className="flex items-center gap-1">
-            <MapPin size={12} /> {listing.location}
+            <MapPin size={12} /> {listing.distanceKm != null ? `${listing.distanceKm.toFixed(1)} km away` : listing.location}
           </span>
         </div>
       </Link>

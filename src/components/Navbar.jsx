@@ -30,6 +30,8 @@ export default function Navbar() {
   const badgeLabel = unreadCount > 99 ? "99+" : unreadCount;
   const chatBadgeLabel = unreadMessageCount > 99 ? "99+" : unreadMessageCount;
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [location, setLocation] = useState("All India");
   const [locOpen, setLocOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -56,9 +58,40 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query.trim())}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      setSuggestions(json.suggestions || []);
+      setSuggestionsOpen(true);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const handleSearch = (e) => {
     e.preventDefault();
+    setSuggestionsOpen(false);
     router.push(`/?q=${encodeURIComponent(query)}&loc=${encodeURIComponent(location)}`);
+  };
+
+  const handleSuggestion = (suggestion) => {
+    setSuggestionsOpen(false);
+    if (suggestion.type === "category") {
+      router.push(`/?category=${encodeURIComponent(suggestion.value)}`);
+      return;
+    }
+    if (suggestion.type === "location") {
+      setLocation(suggestion.value);
+      router.push(`/?loc=${encodeURIComponent(suggestion.value)}`);
+      return;
+    }
+    setQuery(suggestion.value);
+    router.push(`/?q=${encodeURIComponent(suggestion.value)}&loc=${encodeURIComponent(location)}`);
   };
 
   const handleSell = () => {
@@ -95,9 +128,25 @@ export default function Navbar() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
                 placeholder="Search for mobiles, laptops, cars..."
                 className="input-field pl-10"
               />
+              {suggestionsOpen && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-ink-100 bg-white shadow-soft">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.type}-${suggestion.value}`}
+                      type="button"
+                      onClick={() => handleSuggestion(suggestion)}
+                      className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-ink-700 hover:bg-ink-50"
+                    >
+                      <span className="truncate">{suggestion.label}</span>
+                      <span className="ml-3 shrink-0 text-xs capitalize text-ink-400">{suggestion.type}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="relative">
               <button
@@ -243,9 +292,25 @@ export default function Navbar() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
               placeholder="Search products..."
               className="input-field pl-10"
             />
+            {suggestionsOpen && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-ink-100 bg-white shadow-soft">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={`${suggestion.type}-${suggestion.value}-mobile`}
+                    type="button"
+                    onClick={() => handleSuggestion(suggestion)}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-ink-700 hover:bg-ink-50"
+                  >
+                    <span className="truncate">{suggestion.label}</span>
+                    <span className="ml-3 shrink-0 text-xs capitalize text-ink-400">{suggestion.type}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button onClick={handleSell} type="button" className="btn-primary px-3">
             <PlusCircle size={18} />

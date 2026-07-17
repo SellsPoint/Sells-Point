@@ -15,6 +15,8 @@ create table if not exists profiles (
   is_admin boolean not null default false,
   is_banned boolean not null default false,
   location text default '',
+  latitude double precision,
+  longitude double precision,
   bio text default '',
   joined_at timestamptz not null default now(),
   rating numeric not null default 0,
@@ -33,11 +35,15 @@ create table if not exists listings (
   images text[] not null default '{}',
   video_url text,
   location text default '',
+  latitude double precision,
+  longitude double precision,
   featured boolean not null default false,
   featured_status text not null default 'none'
     check (featured_status in ('none', 'pending', 'approved', 'rejected')),
   status text not null default 'active'
-    check (status in ('active', 'sold')),
+    check (status in ('active', 'sold', 'expired', 'flagged', 'removed')),
+  expires_at timestamptz not null default (now() + interval '30 days'),
+  moderation_note text default '',
   created_at timestamptz not null default now(),
   views integer not null default 0
 );
@@ -79,7 +85,22 @@ create table if not exists reports (
   reporter_id uuid references profiles(id) on delete set null,
   reason text not null,
   status text not null default 'open' check (status in ('open', 'resolved')),
+  resolution_note text default '',
+  resolved_by uuid references profiles(id) on delete set null,
+  resolved_at timestamptz,
   created_at timestamptz not null default now()
+);
+
+create table if not exists reviews (
+  id uuid primary key default gen_random_uuid(),
+  reviewer_id uuid references profiles(id) on delete cascade,
+  reviewed_user_id uuid references profiles(id) on delete cascade,
+  rating integer not null check (rating between 1 and 5),
+  comment text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (reviewer_id, reviewed_user_id),
+  check (reviewer_id <> reviewed_user_id)
 );
 
 create table if not exists categories (
@@ -109,11 +130,37 @@ create table if not exists announcements (
   created_at timestamptz not null default now()
 );
 
+create table if not exists user_blocks (
+  blocker_id uuid references profiles(id) on delete cascade,
+  blocked_id uuid references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+
+create table if not exists moderation_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references profiles(id) on delete set null,
+  target_type text not null check (target_type in ('listing', 'user', 'report')),
+  target_id uuid not null,
+  action text not null,
+  note text default '',
+  created_at timestamptz not null default now()
+);
+
 create index if not exists listings_seller_idx on listings(seller_id);
 create index if not exists messages_chat_idx on messages(chat_id);
 create index if not exists chats_participants_idx on chats using gin(participant_ids);
 create index if not exists notifications_recipient_idx on notifications(recipient_id);
 create index if not exists chat_reads_user_idx on chat_reads(user_id);
+create index if not exists reviews_reviewed_user_idx on reviews(reviewed_user_id);
+create index if not exists reviews_reviewer_idx on reviews(reviewer_id);
+create index if not exists listings_geo_idx on listings(latitude, longitude);
+create index if not exists listings_expires_at_idx on listings(expires_at);
+create index if not exists listings_status_idx on listings(status);
+create index if not exists user_blocks_blocker_idx on user_blocks(blocker_id);
+create index if not exists user_blocks_blocked_idx on user_blocks(blocked_id);
+create index if not exists moderation_logs_target_idx on moderation_logs(target_type, target_id);
 
 -- =========================================================
 -- Row Level Security
@@ -139,9 +186,12 @@ alter table chats enable row level security;
 alter table messages enable row level security;
 alter table favorites enable row level security;
 alter table reports enable row level security;
+alter table reviews enable row level security;
 alter table notifications enable row level security;
 alter table chat_reads enable row level security;
 alter table announcements enable row level security;
+alter table user_blocks enable row level security;
+alter table moderation_logs enable row level security;
 
 drop policy if exists "announcements_select_all" on announcements;
 create policy "announcements_select_all" on announcements for select using (true);
@@ -187,6 +237,13 @@ create policy "favorites_delete_all" on favorites for delete using (true);
 drop policy if exists "reports_insert_all" on reports;
 create policy "reports_insert_all" on reports for insert with check (true);
 
+drop policy if exists "reviews_select_all" on reviews;
+create policy "reviews_select_all" on reviews for select using (true);
+drop policy if exists "reviews_insert_all" on reviews;
+create policy "reviews_insert_all" on reviews for insert with check (true);
+drop policy if exists "reviews_update_all" on reviews;
+create policy "reviews_update_all" on reviews for update using (true);
+
 -- notifications: users can only read their own notifications; inserts are
 -- done by the service role (API routes) or by the app via the anon key with
 -- the understanding that RLS is permissive for now (same trust model as
@@ -205,6 +262,16 @@ create policy "chat_reads_insert_all" on chat_reads for insert with check (true)
 drop policy if exists "chat_reads_update_all" on chat_reads;
 create policy "chat_reads_update_all" on chat_reads for update using (true);
 
+drop policy if exists "user_blocks_select_all" on user_blocks;
+create policy "user_blocks_select_all" on user_blocks for select using (true);
+drop policy if exists "user_blocks_insert_all" on user_blocks;
+create policy "user_blocks_insert_all" on user_blocks for insert with check (true);
+drop policy if exists "user_blocks_delete_all" on user_blocks;
+create policy "user_blocks_delete_all" on user_blocks for delete using (true);
+
+drop policy if exists "moderation_logs_no_anon_select" on moderation_logs;
+create policy "moderation_logs_no_anon_select" on moderation_logs for select using (false);
+
 -- =========================================================
 -- RPC functions
 -- =========================================================
@@ -218,6 +285,113 @@ as $$
   where l.status = 'active'
   group by l.category
   order by count desc;
+$$;
+
+create or replace function distance_km(
+  lat1 double precision,
+  lon1 double precision,
+  lat2 double precision,
+  lon2 double precision
+)
+returns double precision
+language sql
+immutable
+as $$
+  select case
+    when lat1 is null or lon1 is null or lat2 is null or lon2 is null then null
+    else 6371 * acos(
+      least(
+        1,
+        greatest(
+          -1,
+          cos(radians(lat1)) * cos(radians(lat2)) *
+          cos(radians(lon2) - radians(lon1)) +
+          sin(radians(lat1)) * sin(radians(lat2))
+        )
+      )
+    )
+  end;
+$$;
+
+create or replace function search_nearby_listings(
+  user_lat double precision,
+  user_lng double precision,
+  radius_km double precision,
+  search_query text default null,
+  category_filter text default null,
+  min_price numeric default null,
+  max_price numeric default null,
+  condition_filters text[] default null,
+  date_cutoff timestamptz default null,
+  result_limit integer default 20,
+  result_offset integer default 0
+)
+returns table (
+  id uuid,
+  seller_id uuid,
+  title text,
+  description text,
+  price numeric,
+  original_price numeric,
+  category text,
+  condition text,
+  images text[],
+  video_url text,
+  location text,
+  latitude double precision,
+  longitude double precision,
+  featured boolean,
+  featured_status text,
+  status text,
+  created_at timestamptz,
+  views integer,
+  expires_at timestamptz,
+  moderation_note text,
+  distance_km double precision
+)
+language sql
+stable
+as $$
+  select
+    l.id,
+    l.seller_id,
+    l.title,
+    l.description,
+    l.price,
+    l.original_price,
+    l.category,
+    l.condition,
+    l.images,
+    l.video_url,
+    l.location,
+    l.latitude,
+    l.longitude,
+    l.featured,
+    l.featured_status,
+    l.status,
+    l.created_at,
+    l.views,
+    l.expires_at,
+    l.moderation_note,
+    distance_km(user_lat, user_lng, l.latitude, l.longitude) as distance_km
+  from listings l
+  where l.status = 'active'
+    and l.expires_at > now()
+    and l.latitude is not null
+    and l.longitude is not null
+    and (radius_km is null or distance_km(user_lat, user_lng, l.latitude, l.longitude) <= radius_km)
+    and (search_query is null or l.title ilike '%' || search_query || '%' or l.description ilike '%' || search_query || '%')
+    and (category_filter is null or l.category = category_filter)
+    and (min_price is null or l.price >= min_price)
+    and (max_price is null or l.price <= max_price)
+    and (condition_filters is null or l.condition = any(condition_filters))
+    and (date_cutoff is null or l.created_at >= date_cutoff)
+  order by
+    case when l.featured and l.featured_status = 'approved' then 0 else 1 end,
+    distance_km asc nulls last,
+    l.created_at desc
+  limit result_limit
+  offset result_offset;
 $$;
 
 -- =========================================================

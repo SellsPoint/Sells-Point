@@ -21,6 +21,7 @@ export default function ChatWindow({ chatId }) {
     reportContent,
     blockUser,
     isBlocked,
+    hasBlockingRelationship,
   } = useApp();
   const chat = chats.find((c) => c.id === chatId);
   const [text, setText] = useState("");
@@ -28,10 +29,12 @@ export default function ChatWindow({ chatId }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [attaching, setAttaching] = useState(false);
-  const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const messagesEl = messagesRef.current;
+    if (!messagesEl) return;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }, [chat?.messages?.length]);
 
   useEffect(() => {
@@ -60,7 +63,8 @@ export default function ChatWindow({ chatId }) {
   const otherUserId = chat.participantIds.find((id) => id !== currentUser.id);
   const otherUser = getUserById(otherUserId);
   const listing = getListingById(chat.listingId);
-  const blocked = isBlocked(otherUserId);
+  const blocked = hasBlockingRelationship(otherUserId);
+  const blockedByMe = isBlocked(otherUserId);
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -155,7 +159,7 @@ export default function ChatWindow({ chatId }) {
         </div>
       )}
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {chat.messages.length === 0 && (
           <p className="py-10 text-center text-sm text-ink-400">
             No messages yet. Say hello to {otherUser?.name}!
@@ -181,12 +185,13 @@ export default function ChatWindow({ chatId }) {
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
       {blocked ? (
         <div className="border-t border-ink-100 p-4 text-center text-sm text-ink-400">
-          You have blocked this user. Unblock from your dashboard to continue chatting.
+          {blockedByMe
+            ? "You have blocked this user. Unblock from your dashboard to continue chatting."
+            : "This conversation is blocked."}
         </div>
       ) : (
         <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-ink-100 p-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Upload, ChevronLeft, ChevronRight, Check, Film, ImagePlus } from "lucide-react";
+import { X, Upload, ChevronLeft, ChevronRight, Check, Film, ImagePlus, LocateFixed } from "lucide-react";
 import { useApp, CONDITIONS } from "@/context/AppContext";
 
 const STEPS = ["Details", "Media", "Pricing", "Review"];
@@ -32,6 +32,8 @@ export default function EditListingModal({ isOpen, onClose, listing }) {
     price: listing?.price ? String(listing.price) : "",
     originalPrice: listing?.originalPrice ? String(listing.originalPrice) : "",
     location: listing?.location || "",
+    latitude: listing?.latitude || null,
+    longitude: listing?.longitude || null,
   });
 
   useEffect(() => {
@@ -46,6 +48,8 @@ export default function EditListingModal({ isOpen, onClose, listing }) {
         price: listing.price ? String(listing.price) : "",
         originalPrice: listing.originalPrice ? String(listing.originalPrice) : "",
         location: listing.location || "",
+        latitude: listing.latitude || null,
+        longitude: listing.longitude || null,
       });
       setStep(0);
       setSubmitted(false);
@@ -95,6 +99,25 @@ export default function EditListingModal({ isOpen, onClose, listing }) {
   };
 
   const removeImage = (idx) => set({ images: form.images.filter((_, i) => i !== idx) });
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Location is not supported in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        set({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          location: form.location || "Current location",
+        });
+        setError("");
+      },
+      () => setError("Unable to access your location. You can still enter it manually."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const canProceed = () => {
     if (step === 0) return form.title.trim() && form.description.trim() && form.category;
@@ -244,12 +267,20 @@ export default function EditListingModal({ isOpen, onClose, listing }) {
                     <label className="mb-1.5 block text-sm font-medium text-ink-700">
                       Location
                     </label>
-                    <input
-                      value={form.location}
-                      onChange={(e) => set({ location: e.target.value })}
-                      placeholder="City, Country"
-                      className="input-field"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={form.location}
+                        onChange={(e) => set({ location: e.target.value })}
+                        placeholder="City, Country"
+                        className="input-field flex-1"
+                      />
+                      <button type="button" onClick={useCurrentLocation} className="btn-secondary shrink-0 px-3">
+                        <LocateFixed size={16} />
+                      </button>
+                    </div>
+                    {form.latitude && form.longitude && (
+                      <p className="mt-1 text-xs text-brand-600">Nearby discovery enabled for this listing.</p>
+                    )}
                   </div>
                 </div>
               )}

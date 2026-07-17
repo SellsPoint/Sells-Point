@@ -59,6 +59,8 @@ export default function AdminPanel() {
     deleteListing,
     banUser,
     unbanUser,
+    warnUser,
+    moderateListing,
     resolveReport,
     addCategory,
     updateCategory,
@@ -236,12 +238,42 @@ export default function AdminPanel() {
                         <td className="px-4 py-3 capitalize">{l.status}</td>
                         <td className="px-4 py-3 capitalize">{l.featuredStatus}</td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => deleteListing(l.id)}
-                            className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            {l.status !== "flagged" && (
+                              <button
+                                onClick={() => moderateListing(l.id, "flag", "Flagged by admin")}
+                                className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50"
+                                title="Flag listing"
+                              >
+                                <Flag size={15} />
+                              </button>
+                            )}
+                            {l.status !== "removed" && (
+                              <button
+                                onClick={() => moderateListing(l.id, "remove", "Removed by admin")}
+                                className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                                title="Remove listing"
+                              >
+                                <ShieldOff size={15} />
+                              </button>
+                            )}
+                            {["flagged", "removed"].includes(l.status) && (
+                              <button
+                                onClick={() => moderateListing(l.id, "restore", "Restored by admin")}
+                                className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50"
+                                title="Restore listing"
+                              >
+                                <ShieldCheck size={15} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteListing(l.id)}
+                              className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                              title="Delete listing"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -287,20 +319,30 @@ export default function AdminPanel() {
                   <td className="px-4 py-3 text-right">
                     {u.isAdmin ? (
                       <span className="text-xs text-ink-400">Protected</span>
-                    ) : u.isBanned ? (
-                      <button
-                        onClick={() => unbanUser(u.id)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
-                      >
-                        <ShieldCheck size={14} /> Unban
-                      </button>
                     ) : (
-                      <button
-                        onClick={() => banUser(u.id)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50"
-                      >
-                        <ShieldOff size={14} /> Ban
-                      </button>
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => warnUser(u.id, "Admin warning")}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-amber-600 hover:bg-amber-50"
+                        >
+                          <AlertTriangle size={14} /> Warn
+                        </button>
+                        {u.isBanned ? (
+                          <button
+                            onClick={() => unbanUser(u.id)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                          >
+                            <ShieldCheck size={14} /> Unsuspend
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => banUser(u.id)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50"
+                          >
+                            <ShieldOff size={14} /> Suspend
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -600,105 +642,151 @@ export default function AdminPanel() {
       )}
 
       {tab === "analytics" && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {analytics ? (
             <>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {[
-                  { label: "Total Users", value: analytics.overview.totalUsers, icon: Users, color: "bg-blue-100 text-blue-600" },
-                  { label: "Active Listings", value: analytics.overview.activeListings, icon: Package, color: "bg-green-100 text-green-600" },
-                  { label: "Sold Items", value: analytics.overview.soldListings, icon: TrendingUp, color: "bg-purple-100 text-purple-600" },
-                  { label: "Open Reports", value: analytics.overview.openReports, icon: AlertTriangle, color: "bg-red-100 text-red-600" },
-                ].map((stat) => {
-                  const Icon = stat.icon;
-                  return (
-                    <div key={stat.label} className="card flex items-center gap-3 p-4">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${stat.color}`}>
-                        <Icon size={18} />
+              <div>
+                <h3 className="mb-4 font-display font-bold text-ink-900">Overview</h3>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  {[
+                    { label: "Total Users", value: analytics.overview.totalUsers, icon: Users, color: "bg-blue-100 text-blue-600" },
+                    { label: "Active Listings", value: analytics.overview.activeListings, icon: Package, color: "bg-green-100 text-green-600" },
+                    { label: "Sold Items", value: analytics.overview.soldListings, icon: TrendingUp, color: "bg-purple-100 text-purple-600" },
+                    { label: "Open Reports", value: analytics.overview.openReports, icon: AlertTriangle, color: "bg-red-100 text-red-600" },
+                  ].map((stat) => {
+                    const Icon = stat.icon;
+                    return (
+                      <div key={stat.label} className="card flex items-center gap-3 p-4">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${stat.color}`}>
+                          <Icon size={18} />
+                        </div>
+                        <div>
+                          <p className="text-xs text-ink-500">{stat.label}</p>
+                          <p className="font-display text-xl font-bold text-ink-900">{stat.value}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-ink-500">{stat.label}</p>
-                        <p className="font-display text-xl font-bold text-ink-900">{stat.value}</p>
-                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-4 font-display font-bold text-ink-900">Engagement</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="card flex items-center gap-3 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <MessageCircle size={18} />
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="card p-4">
-                  <p className="text-xs font-medium text-ink-500">Total Chats</p>
-                  <p className="font-display text-2xl font-bold text-ink-900">{analytics.overview.totalChats}</p>
-                </div>
-                <div className="card p-4">
-                  <p className="text-xs font-medium text-ink-500">Total Messages</p>
-                  <p className="font-display text-2xl font-bold text-ink-900">{analytics.overview.totalMessages}</p>
-                </div>
-                <div className="card p-4">
-                  <p className="text-xs font-medium text-ink-500">Resolved Reports</p>
-                  <p className="font-display text-2xl font-bold text-ink-900">{analytics.overview.resolvedReports}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div>
-                  <h3 className="mb-3 font-display font-bold text-ink-900">Listings by Category</h3>
-                  <div className="card divide-y divide-ink-100">
-                    {analytics.categoryStats.length === 0 ? (
-                      <p className="p-4 text-sm text-ink-400">No data</p>
-                    ) : (
-                      analytics.categoryStats.map((cs) => (
-                        <div key={cs.category} className="flex items-center justify-between px-4 py-2.5">
-                          <span className="text-sm font-medium capitalize text-ink-700">{cs.category}</span>
-                          <span className="text-sm font-bold text-ink-900">{cs.count}</span>
-                        </div>
-                      ))
-                    )}
+                    <div>
+                      <p className="text-xs text-ink-500">Total Chats</p>
+                      <p className="font-display text-xl font-bold text-ink-900">{analytics.overview.totalChats}</p>
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <h3 className="mb-3 font-display font-bold text-ink-900">Listings by Condition</h3>
-                  <div className="card divide-y divide-ink-100">
-                    {Object.keys(analytics.conditionCounts).length === 0 ? (
-                      <p className="p-4 text-sm text-ink-400">No data</p>
-                    ) : (
-                      Object.entries(analytics.conditionCounts).map(([cond, count]) => (
-                        <div key={cond} className="flex items-center justify-between px-4 py-2.5">
-                          <span className="text-sm font-medium text-ink-700">{cond}</span>
-                          <span className="text-sm font-bold text-ink-900">{count}</span>
-                        </div>
-                      ))
-                    )}
+                  <div className="card flex items-center gap-3 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-600">
+                      <MessageCircle size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-ink-500">Total Messages</p>
+                      <p className="font-display text-xl font-bold text-ink-900">{analytics.overview.totalMessages}</p>
+                    </div>
+                  </div>
+                  <div className="card flex items-center gap-3 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                      <Check size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-ink-500">Resolved Reports</p>
+                      <p className="font-display text-xl font-bold text-ink-900">{analytics.overview.resolvedReports}</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {analytics.listingsByDay.length > 0 && (
                 <div>
-                  <h3 className="mb-3 font-display font-bold text-ink-900">New Listings (Last 30 Days)</h3>
-                  <div className="card p-4">
-                    <div className="flex items-end gap-1" style={{ height: 120 }}>
+                  <h3 className="mb-4 font-display font-bold text-ink-900">New Listings (Last 30 Days)</h3>
+                  <div className="card p-6">
+                    <div className="flex items-end gap-1" style={{ height: 160 }}>
                       {analytics.listingsByDay.map((d) => {
                         const max = Math.max(...analytics.listingsByDay.map((x) => x.count), 1);
                         const h = Math.max((d.count / max) * 100, 4);
                         return (
                           <div
                             key={d.date}
-                            className="flex-1 rounded-t bg-brand-500 transition-all hover:bg-brand-600"
+                            className="group relative flex-1 rounded-t bg-brand-500 transition-all hover:bg-brand-600"
                             style={{ height: `${h}%` }}
-                            title={`${d.date}: ${d.count}`}
-                          />
+                          >
+                            <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 rounded bg-ink-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                              {d.count}
+                            </div>
+                          </div>
                         );
                       })}
+                    </div>
+                    <div className="mt-2 flex justify-between text-xs text-ink-400">
+                      <span>{analytics.listingsByDay[0]?.date.slice(5)}</span>
+                      <span>{analytics.listingsByDay[analytics.listingsByDay.length - 1]?.date.slice(5)}</span>
                     </div>
                   </div>
                 </div>
               )}
 
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-4 font-display font-bold text-ink-900">Listings by Category</h3>
+                  <div className="card divide-y divide-ink-100">
+                    {analytics.categoryStats.length === 0 ? (
+                      <p className="p-4 text-sm text-ink-400">No data</p>
+                    ) : (
+                      analytics.categoryStats.map((cs) => {
+                        const max = Math.max(...analytics.categoryStats.map((x) => Number(x.count)), 1);
+                        const pct = (Number(cs.count) / max) * 100;
+                        return (
+                          <div key={cs.category} className="px-4 py-3">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-sm font-medium capitalize text-ink-700">{cs.category}</span>
+                              <span className="text-sm font-bold text-ink-900">{cs.count}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-ink-100">
+                              <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="mb-4 font-display font-bold text-ink-900">Listings by Condition</h3>
+                  <div className="card divide-y divide-ink-100">
+                    {Object.keys(analytics.conditionCounts).length === 0 ? (
+                      <p className="p-4 text-sm text-ink-400">No data</p>
+                    ) : (
+                      Object.entries(analytics.conditionCounts).map(([cond, count]) => {
+                        const max = Math.max(...Object.values(analytics.conditionCounts), 1);
+                        const pct = (count / max) * 100;
+                        return (
+                          <div key={cond} className="px-4 py-3">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-sm font-medium text-ink-700">{cond}</span>
+                              <span className="text-sm font-bold text-ink-900">{count}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-ink-100">
+                              <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {analytics.recentUsers.length > 0 && (
                 <div>
-                  <h3 className="mb-3 font-display font-bold text-ink-900">Recent Signups (Last 7 Days)</h3>
+                  <h3 className="mb-4 font-display font-bold text-ink-900">Recent Signups (Last 7 Days)</h3>
                   <div className="overflow-hidden rounded-2xl border border-ink-100">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-ink-50 text-xs uppercase text-ink-500">
@@ -771,7 +859,7 @@ export default function AdminPanel() {
                   const result = await createAnnouncement(newAnnouncement);
                   if (result.success) {
                     setNewAnnouncement({ title: "", body: "" });
-                    setAnnSuccess("Announcement sent to all users!");
+                    setAnnSuccess(`Announcement sent with ${result.notificationsCreated} notifications.`);
                     setTimeout(() => setAnnSuccess(""), 3000);
                   } else {
                     setAnnError(result.error || "Failed to create announcement.");

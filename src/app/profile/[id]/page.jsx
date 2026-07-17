@@ -1,17 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Star, MapPin, CalendarDays, Package, Pencil } from "lucide-react";
+import { ShieldCheck, Star, MapPin, CalendarDays, Package, Pencil, Send } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import ProductCard from "@/components/ProductCard";
 import EditProfileModal from "@/components/EditProfileModal";
 
 export default function ProfilePage({ params }) {
   const { id } = params;
-  const { hydrated, getUserById, listings, currentUser } = useApp();
+  const {
+    hydrated,
+    getUserById,
+    listings,
+    currentUser,
+    reviewsByUser,
+    fetchReviewsForUser,
+    submitReview,
+  } = useApp();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewError, setReviewError] = useState("");
+  const [reviewSuccess, setReviewSuccess] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const user = getUserById(id);
+  const reviews = reviewsByUser[id] || [];
+
+  useEffect(() => {
+    if (id) fetchReviewsForUser(id);
+  }, [id, fetchReviewsForUser]);
 
   if (!hydrated) {
     return (
@@ -37,10 +55,29 @@ export default function ProfilePage({ params }) {
 
   const userListings = listings.filter((l) => l.sellerId === id && l.status === "active");
   const soldCount = listings.filter((l) => l.sellerId === id && l.status === "sold").length;
+  const canReview = currentUser && currentUser.id !== user.id;
   const memberSince = new Date(user.joinedAt).toLocaleDateString("en-IN", {
     year: "numeric",
     month: "long",
   });
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    setReviewError("");
+    setReviewSuccess("");
+    setReviewSubmitting(true);
+    try {
+      const result = await submitReview(user.id, reviewRating, reviewComment);
+      if (!result.success) {
+        setReviewError(result.error || "Unable to submit review.");
+        return;
+      }
+      setReviewComment("");
+      setReviewSuccess("Review saved.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -94,6 +131,110 @@ export default function ProfilePage({ params }) {
           ))}
         </div>
       )}
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <div className="card p-5">
+            <h2 className="font-display text-lg font-bold text-ink-900">Reviews</h2>
+            <div className="mt-3 flex items-center gap-2">
+              <Star size={20} className="fill-amber-400 text-amber-400" />
+              <span className="font-display text-2xl font-bold text-ink-900">{user.rating?.toFixed(1)}</span>
+              <span className="text-sm text-ink-500">({user.ratingCount} ratings)</span>
+            </div>
+            {canReview && (
+              <form onSubmit={handleReviewSubmit} className="mt-5 space-y-3">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setReviewRating(value)}
+                      className="rounded-lg p-1 text-amber-400 hover:bg-amber-50"
+                      aria-label={`${value} star rating`}
+                    >
+                      <Star
+                        size={20}
+                        className={value <= reviewRating ? "fill-amber-400" : "fill-transparent"}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                  rows={3}
+                  placeholder="Share your experience with this seller..."
+                  className="input-field resize-none"
+                />
+                {reviewError && <p className="text-sm text-red-500">{reviewError}</p>}
+                {reviewSuccess && <p className="text-sm text-brand-600">{reviewSuccess}</p>}
+                {!currentUser?.verified && (
+                  <p className="text-sm text-amber-700">Verify your phone number before leaving a review.</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={reviewSubmitting || !currentUser?.verified}
+                  className="btn-primary w-full"
+                >
+                  <Send size={16} /> {reviewSubmitting ? "Saving..." : "Save Review"}
+                </button>
+              </form>
+            )}
+            {!currentUser && (
+              <p className="mt-4 text-sm text-ink-500">Sign in to leave a review.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-2">
+          {reviews.length === 0 ? (
+            <div className="card p-8 text-center text-sm text-ink-400">
+              No reviews yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((review) => {
+                const reviewer = getUserById(review.reviewerId);
+                return (
+                  <div key={review.id} className="card p-4">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={reviewer?.avatar}
+                        alt=""
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-ink-900">{reviewer?.name || "Sells Point user"}</p>
+                          <div className="flex items-center gap-1 text-amber-400">
+                            {Array.from({ length: 5 }).map((_, index) => (
+                              <Star
+                                key={index}
+                                size={14}
+                                className={index < review.rating ? "fill-amber-400" : "fill-transparent"}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        {review.comment && (
+                          <p className="mt-1 text-sm leading-6 text-ink-600">{review.comment}</p>
+                        )}
+                        <p className="mt-1 text-xs text-ink-400">
+                          {new Date(review.updatedAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
 
       <EditProfileModal
         isOpen={isEditModalOpen}

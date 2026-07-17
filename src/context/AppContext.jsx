@@ -44,6 +44,8 @@ function mapProfile(row) {
     isAdmin: row.is_admin,
     isBanned: row.is_banned,
     location: row.location || "",
+    latitude: row.latitude,
+    longitude: row.longitude,
     bio: row.bio || "",
     joinedAt: row.joined_at ? new Date(row.joined_at).getTime() : Date.now(),
     rating: Number(row.rating) || 0,
@@ -64,9 +66,14 @@ function mapListing(row) {
     images: row.images || [],
     video: row.video_url,
     location: row.location || "",
+    latitude: row.latitude,
+    longitude: row.longitude,
     featured: row.featured,
     featuredStatus: row.featured_status,
     status: row.status,
+    expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : null,
+    moderationNote: row.moderation_note || "",
+    distanceKm: typeof row.distance_km === "number" ? row.distance_km : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     views: row.views || 0,
   };
@@ -116,6 +123,18 @@ function mapNotification(row) {
   };
 }
 
+function mapReview(row) {
+  return {
+    id: row.id,
+    reviewerId: row.reviewer_id,
+    reviewedUserId: row.reviewed_user_id,
+    rating: Number(row.rating) || 0,
+    comment: row.comment || "",
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+  };
+}
+
 const LISTING_FIELD_MAP = {
   title: "title",
   description: "description",
@@ -126,9 +145,13 @@ const LISTING_FIELD_MAP = {
   images: "images",
   video: "video_url",
   location: "location",
+  latitude: "latitude",
+  longitude: "longitude",
   featured: "featured",
   featuredStatus: "featured_status",
   status: "status",
+  expiresAt: "expires_at",
+  moderationNote: "moderation_note",
   views: "views",
 };
 
@@ -146,6 +169,8 @@ const PROFILE_FIELD_MAP = {
   email: "email",
   avatar: "avatar_url",
   location: "location",
+  latitude: "latitude",
+  longitude: "longitude",
   bio: "bio",
   verified: "verified",
 };
@@ -174,7 +199,9 @@ export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingOtp, setPendingOtp] = useState(null);
   const [hydrated, setHydrated] = useState(false);
+  const [userResolved, setUserResolved] = useState(false);
   const [blockedUsers, setBlockedUsersState] = useState([]);
+  const [blockRows, setBlockRows] = useState([]);
   const [chatReads, setChatReads] = useState({});
   const chatReadsRef = useRef(chatReads);
   useEffect(() => {
@@ -183,6 +210,7 @@ export function AppProvider({ children }) {
   const [announcements, setAnnouncements] = useState([]);
   const [publicAnnouncements, setPublicAnnouncements] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [reviewsByUser, setReviewsByUser] = useState({});
 
   const [paginatedListings, setPaginatedListings] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
@@ -206,6 +234,7 @@ export function AppProvider({ children }) {
   // ----- initial public data -----
   useEffect(() => {
     (async () => {
+      await fetch("/api/listings/expiry", { method: "POST" }).catch(() => {});
       const [profileRes, listingsRes] = await Promise.all([
         supabase.from("profiles").select("*").order("joined_at", { ascending: true }),
         supabase.from("listings").select("*").order("created_at", { ascending: false }),
@@ -230,10 +259,49 @@ export function AppProvider({ children }) {
           setLastFilters(filters);
         }
 
+        let dateCutoff = null;
+        if (filters.dateFilter && filters.dateFilter !== "all") {
+          const now = new Date();
+          if (filters.dateFilter === "24h") dateCutoff = new Date(now - 1 * 24 * 60 * 60 * 1000);
+          else if (filters.dateFilter === "7d") dateCutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+          else if (filters.dateFilter === "30d") dateCutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
+        }
+
+        if (filters.nearby?.latitude && filters.nearby?.longitude) {
+          const { data, error } = await supabase.rpc("search_nearby_listings", {
+            user_lat: filters.nearby.latitude,
+            user_lng: filters.nearby.longitude,
+            radius_km: filters.radiusKm || 25,
+            search_query: filters.q || null,
+            category_filter: filters.category || null,
+            min_price: filters.minPrice || null,
+            max_price: filters.maxPrice || null,
+            condition_filters: filters.conditions?.length ? filters.conditions : null,
+            date_cutoff: dateCutoff ? dateCutoff.toISOString() : null,
+            result_limit: ITEMS_PER_PAGE + 1,
+            result_offset: from,
+          });
+          if (queryId !== queryIdRef.current) return;
+          if (error) {
+            setPaginatedHasMore(false);
+            return;
+          }
+          const pageRows = data || [];
+          const mapped = pageRows.slice(0, ITEMS_PER_PAGE).map(mapListing);
+          if (page === 0) setPaginatedListings(mapped);
+          else setPaginatedListings((prev) => [...prev, ...mapped]);
+          setCurrentPage(page);
+          setTotalCount(page === 0 ? mapped.length : totalCount + mapped.length);
+          setPaginatedHasMore(pageRows.length > ITEMS_PER_PAGE);
+          return;
+        }
+
         let query = supabase
           .from("listings")
           .select("*", { count: "exact" })
           .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .order("featured", { ascending: false })
           .order("created_at", { ascending: false });
 
         if (filters.category) {
@@ -254,14 +322,7 @@ export function AppProvider({ children }) {
         if (filters.conditions && filters.conditions.length > 0) {
           query = query.in("condition", filters.conditions);
         }
-        if (filters.dateFilter && filters.dateFilter !== "all") {
-          const now = new Date();
-          let cutoff;
-          if (filters.dateFilter === "24h") cutoff = new Date(now - 1 * 24 * 60 * 60 * 1000);
-          else if (filters.dateFilter === "7d") cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
-          else if (filters.dateFilter === "30d") cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
-          if (cutoff) query = query.gte("created_at", cutoff.toISOString());
-        }
+        if (dateCutoff) query = query.gte("created_at", dateCutoff.toISOString());
 
         const { data, count, error } = await query.range(from, to);
         if (queryId !== queryIdRef.current) return;
@@ -285,7 +346,7 @@ export function AppProvider({ children }) {
         }
       }
     },
-    []
+    [totalCount]
   );
 
   const loadMore = useCallback(() => {
@@ -306,14 +367,18 @@ export function AppProvider({ children }) {
   // ----- resolve logged-in user from localStorage -----
   useEffect(() => {
     const storedId = typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_USER_KEY) : null;
-    if (!storedId) return;
+    if (!storedId) {
+      setUserResolved(true);
+      return;
+    }
     (async () => {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", storedId).single();
       if (error || !data || data.is_banned) {
         window.localStorage.removeItem(CURRENT_USER_KEY);
-        return;
+      } else {
+        setCurrentUser(mapProfile(data));
       }
-      setCurrentUser(mapProfile(data));
+      setUserResolved(true);
     })();
   }, []);
 
@@ -436,9 +501,10 @@ export function AppProvider({ children }) {
         const json = await res.json();
         return { success: false, error: json.error };
       }
+      const json = await res.json();
       await fetchAdminAnnouncements(currentUser.id);
       await fetchAnnouncements();
-      return { success: true };
+      return { success: true, notificationsCreated: json.notificationsCreated || 0 };
     },
     [currentUser, fetchAdminAnnouncements, fetchAnnouncements]
   );
@@ -503,6 +569,72 @@ export function AppProvider({ children }) {
     []
   );
 
+  const fetchReviewsForUser = useCallback(async (userId) => {
+    if (!userId) return [];
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("reviewed_user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      setReviewsByUser((prev) => ({ ...prev, [userId]: [] }));
+      return [];
+    }
+    const mapped = (data || []).map(mapReview);
+    setReviewsByUser((prev) => ({ ...prev, [userId]: mapped }));
+    return mapped;
+  }, []);
+
+  const refreshUserRating = useCallback(async (userId, reviews = null) => {
+    const sourceReviews = reviews || (await fetchReviewsForUser(userId));
+    const ratingCount = sourceReviews.length;
+    const rating =
+      ratingCount > 0
+        ? sourceReviews.reduce((total, review) => total + review.rating, 0) / ratingCount
+        : 0;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ rating, rating_count: ratingCount })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error || !data) return null;
+    const mapped = mapProfile(data);
+    setUsers((prev) => prev.map((user) => (user.id === mapped.id ? mapped : user)));
+    if (currentUser?.id === mapped.id) setCurrentUser(mapped);
+    return mapped;
+  }, [currentUser, fetchReviewsForUser]);
+
+  const submitReview = useCallback(
+    async (reviewedUserId, rating, comment) => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      if (!currentUser.verified) return { success: false, error: "Verify your phone number before leaving a review." };
+      if (currentUser.id === reviewedUserId) return { success: false, error: "You cannot review yourself." };
+
+      const safeRating = Math.max(1, Math.min(5, Number(rating) || 0));
+      if (!safeRating) return { success: false, error: "Choose a rating." };
+
+      const { error } = await supabase.from("reviews").upsert(
+        {
+          reviewer_id: currentUser.id,
+          reviewed_user_id: reviewedUserId,
+          rating: safeRating,
+          comment: comment?.trim() || "",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "reviewer_id,reviewed_user_id" }
+      );
+      if (error) return { success: false, error: error.message };
+
+      const reviews = await fetchReviewsForUser(reviewedUserId);
+      await refreshUserRating(reviewedUserId, reviews);
+      return { success: true };
+    },
+    [currentUser, fetchReviewsForUser, refreshUserRating]
+  );
+
   const fetchNotifications = useCallback(async (userId) => {
     const { data } = await supabase
       .from("notifications")
@@ -523,6 +655,19 @@ export function AppProvider({ children }) {
       map[r.chat_id] = new Date(r.last_read_at).getTime();
     });
     setChatReads(map);
+  }, []);
+
+  const fetchBlocks = useCallback(async (userId) => {
+    const res = await fetch(`/api/blocks?actorId=${userId}`);
+    if (!res.ok) {
+      setBlockRows([]);
+      setBlockedUsersState([]);
+      return;
+    }
+    const json = await res.json();
+    const rows = json.blocks || [];
+    setBlockRows(rows);
+    setBlockedUsersState(rows.filter((row) => row.blocker_id === userId).map((row) => row.blocked_id));
   }, []);
 
   const markChatAsRead = useCallback(
@@ -609,22 +754,34 @@ export function AppProvider({ children }) {
         (payload) => {
           const mapped = mapNotification(payload.new);
           setNotifications((prev) => (prev.some((n) => n.id === mapped.id) ? prev : [mapped, ...prev]));
+          if (mapped.entityType === "announcement") {
+            fetchAnnouncements();
+          }
         }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser]);
+  }, [currentUser, fetchAnnouncements]);
 
   useEffect(() => {
-    if (currentUser) {
-      const raw = window.localStorage.getItem(`sellspoint_blocked_${currentUser.id}`);
-      setBlockedUsersState(raw ? JSON.parse(raw) : []);
-    } else {
+    if (!currentUser) {
       setBlockedUsersState([]);
+      setBlockRows([]);
+      return;
     }
-  }, [currentUser]);
+    fetchBlocks(currentUser.id);
+    const raw = window.localStorage.getItem(`sellspoint_blocked_${currentUser.id}`);
+    const legacyIds = raw ? JSON.parse(raw) : [];
+    legacyIds.forEach((blockedId) => {
+      fetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, blockedId }),
+      }).then(() => fetchBlocks(currentUser.id));
+    });
+  }, [currentUser, fetchBlocks]);
 
   const getUserById = useCallback((id) => users.find((u) => u.id === id) || null, [users]);
   const getListingById = useCallback((id) => listings.find((l) => l.id === id) || null, [listings]);
@@ -657,11 +814,21 @@ export function AppProvider({ children }) {
             name: name || "New User",
             avatar_url: `https://i.pravatar.cc/150?u=${encodeURIComponent(phone)}`,
             location: "India",
+            verified: true,
           })
           .select()
           .single();
         if (error) return { success: false, message: error.message };
         profileRow = inserted;
+      } else if (!profileRow.verified) {
+        const { data: updated, error } = await supabase
+          .from("profiles")
+          .update({ verified: true })
+          .eq("id", profileRow.id)
+          .select()
+          .single();
+        if (error) return { success: false, message: error.message };
+        profileRow = updated;
       }
 
       if (profileRow.is_banned) {
@@ -710,28 +877,15 @@ export function AppProvider({ children }) {
   const addListing = useCallback(
     async (data) => {
       if (!currentUser) return null;
-      const { data: inserted, error } = await supabase
-        .from("listings")
-        .insert({
-          seller_id: currentUser.id,
-          title: data.title,
-          description: data.description,
-          price: Number(data.price) || 0,
-          original_price: Number(data.originalPrice) || Number(data.price) || 0,
-          category: data.category,
-          condition: data.condition || "Good",
-          images: data.images && data.images.length ? data.images : [],
-          video_url: data.video || null,
-          location: data.location || currentUser.location || "India",
-          featured: !!data.featured,
-          featured_status: data.featured ? "pending" : "none",
-          status: "active",
-          views: 0,
-        })
-        .select()
-        .single();
-      if (error) return null;
-      const mapped = mapListing(inserted);
+      if (!currentUser.verified) return null;
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, action: "create", listing: data }),
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const mapped = mapListing(json.listing);
       setListings((prev) => [mapped, ...prev]);
       return mapped;
     },
@@ -746,12 +900,23 @@ export function AppProvider({ children }) {
         if (!existing || existing.sellerId !== currentUser.id) return { success: false, error: "Not authorized" };
       }
       const row = toListingRow(updates);
-      const { data, error } = await supabase.from("listings").update(row).eq("id", id).select().single();
-      if (error) {
-        console.error("updateListing error:", error);
-        return { success: false, error: error.message };
+      const res = await fetch("/api/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actorId: currentUser?.id,
+          listingId: id,
+          action: "update",
+          skipOwnershipCheck: options.skipOwnershipCheck,
+          updates: row,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        return { success: false, error: json.error || "Unable to update listing" };
       }
-      const mapped = mapListing(data);
+      const json = await res.json();
+      const mapped = mapListing(json.listing);
       setListings((prev) => prev.map((l) => (l.id === id ? mapped : l)));
       return { success: true };
     },
@@ -759,10 +924,32 @@ export function AppProvider({ children }) {
   );
 
   const deleteListing = useCallback(async (id) => {
-    const { error } = await supabase.from("listings").delete().eq("id", id);
-    if (error) return;
+    if (!currentUser) return;
+    const res = await fetch("/api/listings", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actorId: currentUser.id, listingId: id }),
+    });
+    if (!res.ok) return;
     setListings((prev) => prev.filter((l) => l.id !== id));
-  }, []);
+  }, [currentUser]);
+
+  const renewListing = useCallback(async (id) => {
+    if (!currentUser) return { success: false, error: "Not authenticated" };
+    const res = await fetch("/api/listings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actorId: currentUser.id, listingId: id, action: "renew" }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      return { success: false, error: json.error || "Unable to renew listing" };
+    }
+    const json = await res.json();
+    const mapped = mapListing(json.listing);
+    setListings((prev) => prev.map((l) => (l.id === id ? mapped : l)));
+    return { success: true };
+  }, [currentUser]);
 
   const markAsSold = useCallback(
     async (id) => {
@@ -794,9 +981,9 @@ export function AppProvider({ children }) {
     (id) => {
       const listing = listings.find((l) => l.id === id);
       if (!listing) return;
-      updateListing(id, { views: (listing.views || 0) + 1 }, { skipOwnershipCheck: true });
+      supabase.from("listings").update({ views: (listing.views || 0) + 1 }).eq("id", id).then(() => {});
     },
-    [listings, updateListing]
+    [listings]
   );
 
   // ----- Favorites -----
@@ -834,6 +1021,7 @@ export function AppProvider({ children }) {
   const getOrCreateChat = useCallback(
     async (listingId, otherUserId) => {
       if (!currentUser) return null;
+      if (!currentUser.verified) return null;
       const existingLocal = chats.find(
         (c) =>
           c.listingId === listingId &&
@@ -871,6 +1059,16 @@ export function AppProvider({ children }) {
   const sendMessage = useCallback(
     async (chatId, text, image) => {
       if (!currentUser) return;
+      const chat = chatsRef.current.find((c) => c.id === chatId);
+      const recipientIds = chat?.participantIds.filter((pid) => pid !== currentUser.id) || [];
+      const blocked = recipientIds.some((recipientId) =>
+        blockRows.some(
+          (row) =>
+            (row.blocker_id === currentUser.id && row.blocked_id === recipientId) ||
+            (row.blocker_id === recipientId && row.blocked_id === currentUser.id)
+        )
+      );
+      if (blocked) return;
       const { data, error } = await supabase
         .from("messages")
         .insert({ chat_id: chatId, sender_id: currentUser.id, text: text || "", image_url: image || null })
@@ -885,16 +1083,14 @@ export function AppProvider({ children }) {
             : c
         )
       );
-      const chat = chatsRef.current.find((c) => c.id === chatId);
       if (chat) {
-        const recipientIds = chat.participantIds.filter((pid) => pid !== currentUser.id);
         for (const recipientId of recipientIds) {
           await createNotification(recipientId, currentUser.id, "message", chatId, "chat");
         }
       }
       return mapped;
     },
-    [currentUser, createNotification]
+    [currentUser, createNotification, blockRows]
   );
 
   const appendIncomingMessage = useCallback((chatId, row) => {
@@ -953,12 +1149,12 @@ export function AppProvider({ children }) {
   );
 
   const resolveReport = useCallback(
-    async (id) => {
+    async (id, note = "") => {
       if (!currentUser) return;
       await fetch("/api/admin/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actorId: currentUser.id, reportId: id, action: "resolve" }),
+        body: JSON.stringify({ actorId: currentUser.id, reportId: id, action: "resolve", note }),
       });
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: "resolved" } : r)));
     },
@@ -1016,27 +1212,93 @@ export function AppProvider({ children }) {
   );
 
   const blockUser = useCallback(
-    (id) => {
+    async (id) => {
       if (!currentUser) return;
-      setBlockedUsersState((prev) => {
-        const next = prev.includes(id) ? prev : [...prev, id];
-        window.localStorage.setItem(`sellspoint_blocked_${currentUser.id}`, JSON.stringify(next));
-        return next;
+      const res = await fetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, blockedId: id }),
+      });
+      if (res.ok) await fetchBlocks(currentUser.id);
+    },
+    [currentUser, fetchBlocks]
+  );
+
+  const warnUser = useCallback(
+    async (id, note = "") => {
+      if (!currentUser) return;
+      await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, targetUserId: id, action: "warn", note }),
       });
     },
     [currentUser]
   );
 
+  const moderateListing = useCallback(
+    async (id, action, note = "") => {
+      if (!currentUser) return { success: false, error: "Not authenticated" };
+      const res = await fetch("/api/admin/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, listingId: id, action, note }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        return { success: false, error: json.error || "Moderation failed" };
+      }
+      const statusMap = { flag: "flagged", remove: "removed", restore: "active" };
+      if (statusMap[action]) {
+        setListings((prev) =>
+          prev.map((listing) =>
+            listing.id === id ? { ...listing, status: statusMap[action], moderationNote: note } : listing
+          )
+        );
+      }
+      return { success: true };
+    },
+    [currentUser]
+  );
+
+  const unblockUser = useCallback(
+    async (id) => {
+      if (!currentUser) return;
+      const res = await fetch("/api/blocks", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: currentUser.id, blockedId: id }),
+      });
+      if (res.ok) await fetchBlocks(currentUser.id);
+    },
+    [currentUser, fetchBlocks]
+  );
+
   const isBlocked = useCallback((id) => blockedUsers.includes(id), [blockedUsers]);
+
+  const hasBlockingRelationship = useCallback(
+    (id) => {
+      if (!currentUser || !id) return false;
+      return blockRows.some(
+        (row) =>
+          (row.blocker_id === currentUser.id && row.blocked_id === id) ||
+          (row.blocker_id === id && row.blocked_id === currentUser.id)
+      );
+    },
+    [blockRows, currentUser]
+  );
 
   const value = {
     hydrated,
+    userResolved,
     users,
     listings,
     categories,
     chats,
     reports,
     notifications,
+    blockedUsers,
+    reviewsByUser,
     currentUser,
     getUserById,
     getListingById,
@@ -1047,6 +1309,7 @@ export function AppProvider({ children }) {
     addListing,
     updateListing,
     deleteListing,
+    renewListing,
     markAsSold,
     requestFeatured,
     incrementViews,
@@ -1064,11 +1327,17 @@ export function AppProvider({ children }) {
     resolveReport,
     banUser,
     unbanUser,
+    warnUser,
+    moderateListing,
     setFeaturedStatus,
     blockUser,
+    unblockUser,
     isBlocked,
+    hasBlockingRelationship,
     markNotificationRead,
     markAllNotificationsRead,
+    fetchReviewsForUser,
+    submitReview,
     addCategory,
     updateCategory,
     deleteCategory,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Upload, Sparkles, ChevronLeft, ChevronRight, Check, Film, ImagePlus } from "lucide-react";
+import { X, Upload, Sparkles, ChevronLeft, ChevronRight, Check, Film, ImagePlus, LocateFixed } from "lucide-react";
 import { useApp, CONDITIONS } from "@/context/AppContext";
 
 const STEPS = ["Details", "Media", "Pricing & Boost", "Review"];
@@ -23,6 +23,7 @@ export default function PostAdModal({ isOpen, onClose }) {
   const [submitted, setSubmitted] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [form, setForm] = useState({
     title: "",
     category: "",
@@ -33,6 +34,8 @@ export default function PostAdModal({ isOpen, onClose }) {
     price: "",
     originalPrice: "",
     location: currentUser?.location || "",
+    latitude: currentUser?.latitude || null,
+    longitude: currentUser?.longitude || null,
     featured: false,
   });
 
@@ -41,6 +44,7 @@ export default function PostAdModal({ isOpen, onClose }) {
   const close = () => {
     setStep(0);
     setSubmitted(null);
+    setSubmitError("");
     setForm({
       title: "",
       category: "",
@@ -51,6 +55,8 @@ export default function PostAdModal({ isOpen, onClose }) {
       price: "",
       originalPrice: "",
       location: currentUser?.location || "",
+      latitude: currentUser?.latitude || null,
+      longitude: currentUser?.longitude || null,
       featured: false,
     });
     onClose();
@@ -84,6 +90,25 @@ export default function PostAdModal({ isOpen, onClose }) {
 
   const removeImage = (idx) => set({ images: form.images.filter((_, i) => i !== idx) });
 
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setSubmitError("Location is not supported in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        set({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          location: form.location || "Current location",
+        });
+        setSubmitError("");
+      },
+      () => setSubmitError("Unable to access your location. You can still enter it manually."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const canProceed = () => {
     if (step === 0) return form.title.trim() && form.description.trim() && form.category;
     if (step === 2) return form.price && Number(form.price) > 0;
@@ -91,9 +116,18 @@ export default function PostAdModal({ isOpen, onClose }) {
   };
 
   const handleSubmit = async () => {
+    setSubmitError("");
+    if (!currentUser?.verified) {
+      setSubmitError("Verify your phone number before posting an ad.");
+      return;
+    }
     setSubmitting(true);
     try {
       const listing = await addListing(form);
+      if (!listing) {
+        setSubmitError("Unable to publish this ad. Check your account verification and try again.");
+        return;
+      }
       setSubmitted(listing);
     } finally {
       setSubmitting(false);
@@ -233,12 +267,20 @@ export default function PostAdModal({ isOpen, onClose }) {
                     <label className="mb-1.5 block text-sm font-medium text-ink-700">
                       Location
                     </label>
-                    <input
-                      value={form.location}
-                      onChange={(e) => set({ location: e.target.value })}
-                      placeholder="City, Country"
-                      className="input-field"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={form.location}
+                        onChange={(e) => set({ location: e.target.value })}
+                        placeholder="City, Country"
+                        className="input-field flex-1"
+                      />
+                      <button type="button" onClick={useCurrentLocation} className="btn-secondary shrink-0 px-3">
+                        <LocateFixed size={16} />
+                      </button>
+                    </div>
+                    {form.latitude && form.longitude && (
+                      <p className="mt-1 text-xs text-brand-600">Nearby discovery enabled for this listing.</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -398,6 +440,16 @@ export default function PostAdModal({ isOpen, onClose }) {
                     Review the details above, then publish your ad. You can edit or mark it sold
                     anytime from your dashboard.
                   </p>
+                  {!currentUser?.verified && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Verify your phone number before posting an ad.
+                    </div>
+                  )}
+                  {submitError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {submitError}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -421,7 +473,7 @@ export default function PostAdModal({ isOpen, onClose }) {
                 Continue <ChevronRight size={16} />
               </button>
             ) : (
-              <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
+              <button onClick={handleSubmit} disabled={submitting || !currentUser?.verified} className="btn-primary">
                 {submitting ? "Publishing..." : "Publish Ad"} <Check size={16} />
               </button>
             )}

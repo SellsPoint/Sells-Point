@@ -2,26 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Heart, CheckCircle2, Sparkles, Trash2, Pencil, Clock } from "lucide-react";
+import { Package, Heart, CheckCircle2, Sparkles, Trash2, Pencil, Clock, RotateCw, ShieldOff } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import ProductCard from "@/components/ProductCard";
 import EditListingModal from "@/components/EditListingModal";
 
 function isExpired(listing) {
+  if (listing.status === "expired") return true;
   if (listing.status !== "active") return false;
-  if (!listing.createdAt) return false;
-  const created = new Date(listing.createdAt);
-  if (isNaN(created.getTime())) return false;
-  const now = new Date();
-  const diffDays = (now - created) / (1000 * 60 * 60 * 24);
-  return diffDays > 30;
+  return listing.expiresAt ? listing.expiresAt <= Date.now() : false;
 }
 
-function expiredAgoText(createdAt) {
-  if (!createdAt) return "";
-  const created = new Date(createdAt);
-  if (isNaN(created.getTime())) return "";
-  const diffMs = Date.now() - created.getTime();
+function expiredAgoText(expiresAt) {
+  if (!expiresAt) return "";
+  const diffMs = Date.now() - expiresAt;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) return "Expired today";
   if (diffDays === 1) return "Expired 1 day ago";
@@ -37,7 +31,18 @@ function formatPrice(value) {
 }
 
 export default function DashboardPage() {
-  const { currentUser, listings, favoriteListings, markAsSold, deleteListing, requestFeatured } =
+  const {
+    currentUser,
+    listings,
+    favoriteListings,
+    blockedUsers,
+    getUserById,
+    markAsSold,
+    deleteListing,
+    renewListing,
+    requestFeatured,
+    unblockUser,
+  } =
     useApp();
   const router = useRouter();
   const [tab, setTab] = useState("active");
@@ -60,6 +65,7 @@ export default function DashboardPage() {
     { id: "sold", label: `Sold (${sold.length})`, icon: CheckCircle2 },
     { id: "expired", label: `Expired (${expired.length})`, icon: Clock },
     { id: "wishlist", label: `Wishlist (${favoriteListings.length})`, icon: Heart },
+    { id: "blocked", label: `Blocked (${blockedUsers.length})`, icon: ShieldOff },
   ];
 
   return (
@@ -86,7 +92,31 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {tab === "wishlist" ? (
+      {tab === "blocked" ? (
+        blockedUsers.length === 0 ? (
+          <p className="py-16 text-center text-sm text-ink-400">
+            You haven't blocked any users.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {blockedUsers.map((userId) => {
+              const user = getUserById(userId);
+              return (
+                <div key={userId} className="card flex items-center gap-4 p-4">
+                  <img src={user?.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-ink-900">{user?.name || "Sells Point user"}</p>
+                    <p className="text-sm text-ink-500">{user?.phone || userId}</p>
+                  </div>
+                  <button onClick={() => unblockUser(userId)} className="btn-secondary px-3 py-1.5 text-sm">
+                    Unblock
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : tab === "wishlist" ? (
         favoriteListings.length === 0 ? (
           <p className="py-16 text-center text-sm text-ink-400">
             You haven't saved any listings yet.
@@ -134,7 +164,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 {tab === "expired" && (
-                  <p className="mt-1 text-xs text-red-500">{expiredAgoText(l.createdAt)}</p>
+                  <p className="mt-1 text-xs text-red-500">{expiredAgoText(l.expiresAt)}</p>
                 )}
               </div>
               {tab === "active" && (
@@ -172,6 +202,12 @@ export default function DashboardPage() {
               )}
               {tab === "expired" && (
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    onClick={() => renewListing(l.id)}
+                    className="btn-secondary px-3 py-1.5 text-sm"
+                  >
+                    <RotateCw size={14} /> Renew
+                  </button>
                   <button
                     onClick={() => deleteListing(l.id)}
                     className="rounded-xl border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-500 hover:bg-red-50"

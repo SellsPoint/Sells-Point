@@ -1,6 +1,6 @@
 "use client";
 
-import { X, SlidersHorizontal, Calendar, IndianRupee, Tag } from "lucide-react";
+import { X, Calendar, IndianRupee, Tag, LocateFixed } from "lucide-react";
 import { CONDITIONS } from "@/context/AppContext";
 
 const DATE_OPTIONS = [
@@ -15,16 +15,22 @@ export default function FilterBar({
   maxPrice,
   conditions,
   dateFilter,
+  nearby,
+  radiusKm,
   onMinPriceChange,
   onMaxPriceChange,
   onConditionToggle,
   onDateFilterChange,
+  onUseNearby,
+  onClearNearby,
+  onRadiusChange,
   onClearAll,
 }) {
   const activeFilterCount =
     (minPrice || maxPrice ? 1 : 0) +
     (conditions.length > 0 ? 1 : 0) +
-    (dateFilter && dateFilter !== "all" ? 1 : 0);
+    (dateFilter && dateFilter !== "all" ? 1 : 0) +
+    (nearby ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -54,6 +60,35 @@ export default function FilterBar({
         />
         {minPrice && maxPrice && minPrice > maxPrice && (
           <span className="text-xs text-red-500">Min must be less than Max</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+          <LocateFixed size={16} />
+          Nearby:
+        </div>
+        <button
+          type="button"
+          onClick={nearby ? onClearNearby : onUseNearby}
+          className={`rounded-xl px-3.5 py-2 text-sm font-semibold ${
+            nearby ? "bg-brand-600 text-white" : "bg-white text-ink-600 ring-1 ring-inset ring-ink-200"
+          }`}
+        >
+          {nearby ? "Near me active" : "Use my location"}
+        </button>
+        {nearby && (
+          <select
+            value={radiusKm || 25}
+            onChange={(e) => onRadiusChange(Number(e.target.value))}
+            className="rounded-xl border border-ink-200 px-3.5 py-2 text-sm text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          >
+            {[5, 10, 25, 50].map((km) => (
+              <option key={km} value={km}>
+                {km} km
+              </option>
+            ))}
+          </select>
         )}
       </div>
 

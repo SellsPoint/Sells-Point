@@ -43,11 +43,18 @@ export async function POST(request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const { data: allUsers } = await supabaseAdmin
+    const { data: allUsers, error: usersError } = await supabaseAdmin
       .from("profiles")
       .select("id")
+      .eq("is_banned", false)
       .neq("id", actorId);
 
+    if (usersError) {
+      await supabaseAdmin.from("announcements").delete().eq("id", inserted.id);
+      return NextResponse.json({ error: usersError.message }, { status: 500 });
+    }
+
+    let notificationsCreated = 0;
     if (allUsers && allUsers.length > 0) {
       const notifRows = allUsers.map((u) => ({
         recipient_id: u.id,
@@ -57,10 +64,15 @@ export async function POST(request) {
         entity_type: "announcement",
         read: false,
       }));
-      await supabaseAdmin.from("notifications").insert(notifRows);
+      const { error: notificationError } = await supabaseAdmin.from("notifications").insert(notifRows);
+      if (notificationError) {
+        await supabaseAdmin.from("announcements").delete().eq("id", inserted.id);
+        return NextResponse.json({ error: notificationError.message }, { status: 500 });
+      }
+      notificationsCreated = notifRows.length;
     }
 
-    return NextResponse.json({ success: true, announcement: inserted });
+    return NextResponse.json({ success: true, announcement: inserted, notificationsCreated });
   }
 
   if (action === "deactivate") {

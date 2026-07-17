@@ -23,6 +23,10 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState(null);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, []);
+
+  useEffect(() => {
     if (!currentUser) {
       router.push("/");
     }
