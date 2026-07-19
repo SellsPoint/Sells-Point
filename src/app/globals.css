@@ -3,8 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --font-display: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --home-content-width: 75rem;
 }
 
 * {
@@ -27,16 +26,46 @@
 }
 
 body {
-  @apply bg-ink-50 text-ink-900 antialiased;
+  @apply bg-white text-ink-900 antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid #18b568;
+  outline-offset: 3px;
 }
 
 @layer components {
-  .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-soft;
+  .home-container {
+    @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
+    max-width: var(--home-content-width);
   }
 
-  .glass-dark {
-    @apply bg-ink-900/60 backdrop-blur-xl border border-white/10;
+  .hero-wash {
+    background:
+      radial-gradient(circle at 82% 18%, rgba(117, 230, 169, 0.28), transparent 34%),
+      radial-gradient(circle at 15% 88%, rgba(214, 250, 227, 0.72), transparent 38%),
+      linear-gradient(135deg, #f4fff8 0%, #ffffff 58%, #f1fbf5 100%);
+  }
+
+  .cta-gradient {
+    background: linear-gradient(120deg, #0d7546 0%, #0e9354 52%, #18b568 100%);
+  }
+
+  .card-neutral {
+    @apply rounded-2xl border border-slate-200/80 bg-white;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.07);
+  }
+
+  .search-group {
+    @apply flex w-full items-stretch overflow-hidden rounded-full border border-ink-200 bg-white shadow-sm transition-shadow duration-200 focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100;
+  }
+
+  .search-group-field {
+    @apply min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-sm text-ink-900 outline-none placeholder:text-ink-400;
+  }
+
+  .btn-pill {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 font-semibold transition-colors duration-200 disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
@@ -75,10 +104,6 @@ body {
     @apply badge bg-ink-100 text-ink-600;
   }
 
-  .hover-card {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-glow;
-  }
-
   .skeleton {
     @apply relative overflow-hidden bg-ink-100;
   }
@@ -99,61 +124,6 @@ body {
     @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl;
   }
 
-  .section-heading {
-    @apply flex items-center gap-2 font-display text-xl font-bold text-ink-900;
-  }
-
-  .bg-dot-grid {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
-    background-size: 26px 26px;
-  }
-
-  .gradient-border {
-    position: relative;
-  }
-
-  .gradient-border::before {
-    content: "";
-    @apply absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-300;
-    background: linear-gradient(135deg, #3ecf85, #0d7546);
-    z-index: -1;
-  }
-
-  .gradient-border:hover::before {
-    @apply opacity-100;
-  }
-
-  .pulse-ring {
-    position: relative;
-  }
-
-  .pulse-ring::after {
-    content: "";
-    @apply absolute inset-0 rounded-xl;
-    box-shadow: 0 0 0 0 rgba(62, 207, 133, 0.55);
-    animation: pulse-ring 2.4s infinite;
-  }
-
-  .marquee-track {
-    animation: marquee 22s linear infinite;
-  }
-
-  .marquee-track:hover {
-    animation-play-state: paused;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 30px rgba(62, 207, 133, 0.5);
-  }
-}
-
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
 }
 
 @keyframes shimmer {
@@ -162,15 +132,14 @@ body {
   }
 }
 
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(62, 207, 133, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 14px rgba(62, 207, 133, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(62, 207, 133, 0);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -186,10 +155,9 @@ body {
   background: white;
 }
 
-.admin-shell main > .overflow-hidden,
-.admin-shell main > .space-y-8 > div > .overflow-hidden,
-.admin-shell main > .space-y-6 > div > .overflow-hidden {
+.admin-shell .overflow-hidden:has(> table) {
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
   background: white;
   box-shadow: 0 1px 2px rgba(13, 35, 25, 0.04);
 }

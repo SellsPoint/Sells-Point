@@ -56,7 +56,7 @@ export default function AuthModal({ isOpen, onClose }) {
       <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-soft animate-slide-up">
         <button
           onClick={close}
-          className="absolute right-4 top-4 rounded-full p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-700"
           aria-label="Close"
         >
           <X size={18} />

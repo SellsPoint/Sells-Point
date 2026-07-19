@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MessageCircle } from "lucide-react";
+import { ChevronLeft, MessageCircle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import ChatWindow from "@/components/ChatWindow";
 
@@ -21,6 +21,7 @@ export default function ChatPage() {
   const { currentUser, userChats, getUserById, getListingById, markChatAsRead, getUnreadCount } = useApp();
   const router = useRouter();
   const [activeChatId, setActiveChatId] = useState(null);
+  const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
@@ -49,8 +50,8 @@ export default function ChatPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <h1 className="mb-6 font-display text-2xl font-bold text-ink-900">Messages</h1>
-      <div className="grid rounded-2xl border border-ink-100 shadow-soft md:grid-cols-3" style={{ height: "70vh" }}>
-        <div className="flex flex-col overflow-hidden border-r border-ink-100 md:col-span-1">
+      <div className="grid h-[calc(100dvh-10rem)] min-h-[32rem] rounded-2xl border border-ink-100 shadow-soft md:h-[70vh] md:grid-cols-3">
+        <div className={`${mobileConversationOpen ? "hidden" : "flex"} flex-col overflow-hidden md:col-span-1 md:flex md:border-r`}>
           {userChats.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-ink-400">
               <MessageCircle size={28} />
@@ -66,8 +67,8 @@ export default function ChatPage() {
                 return (
                   <button
                     key={chat.id}
-                    onClick={() => setActiveChatId(chat.id)}
-                    className={`flex w-full items-center gap-3 border-b border-ink-100 p-4 text-left transition-colors hover:bg-ink-50 ${
+                    onClick={() => { setActiveChatId(chat.id); setMobileConversationOpen(true); }}
+                    className={`flex min-h-16 w-full items-center gap-3 border-b border-ink-100 p-4 text-left transition-colors hover:bg-ink-50 ${
                       activeChatId === chat.id ? "bg-brand-50" : ""
                     }`}
                   >
@@ -88,7 +89,10 @@ export default function ChatPage() {
             </div>
           )}
         </div>
-        <div className="overflow-hidden md:col-span-2">
+        <div className={`${mobileConversationOpen ? "block" : "hidden"} overflow-hidden md:col-span-2 md:block`}>
+          <button type="button" onClick={() => setMobileConversationOpen(false)} className="flex h-11 items-center gap-1 px-3 text-sm font-semibold text-ink-600 hover:bg-ink-50 md:hidden">
+            <ChevronLeft size={18} /> Conversations
+          </button>
           <ChatWindow chatId={activeChatId} />
         </div>
       </div>

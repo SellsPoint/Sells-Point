@@ -51,6 +51,13 @@ export default function DashboardPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (["active", "sold", "expired", "saved", "blocked"].includes(requestedTab)) {
+      setTab(requestedTab);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!currentUser) router.push("/");
     else if (currentUser.isAdmin) router.replace("/admin");
   }, [currentUser, router]);
@@ -66,7 +73,7 @@ export default function DashboardPage() {
     { id: "active", label: `Active (${active.length - expired.length})`, icon: Package },
     { id: "sold", label: `Sold (${sold.length})`, icon: CheckCircle2 },
     { id: "expired", label: `Expired (${expired.length})`, icon: Clock },
-    { id: "wishlist", label: `Wishlist (${favoriteListings.length})`, icon: Heart },
+    { id: "saved", label: `Saved (${favoriteListings.length})`, icon: Heart },
     { id: "blocked", label: `Blocked (${blockedUsers.length})`, icon: ShieldOff },
   ];
 
@@ -75,14 +82,17 @@ export default function DashboardPage() {
       <h1 className="mb-1 font-display text-2xl font-bold text-ink-900">My Dashboard</h1>
       <p className="mb-6 text-sm text-ink-500">Manage your listings, sales, and saved items.</p>
 
-      <div className="mb-6 flex gap-2 border-b border-ink-100">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-100">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+              onClick={() => {
+                setTab(t.id);
+                router.replace(`/dashboard?tab=${t.id}`, { scroll: false });
+              }}
+              className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors sm:px-4 ${
                 tab === t.id
                   ? "border-brand-600 text-brand-700"
                   : "border-transparent text-ink-500 hover:text-ink-700"
@@ -118,7 +128,7 @@ export default function DashboardPage() {
             })}
           </div>
         )
-      ) : tab === "wishlist" ? (
+      ) : tab === "saved" ? (
         favoriteListings.length === 0 ? (
           <p className="py-16 text-center text-sm text-ink-400">
             You haven't saved any listings yet.

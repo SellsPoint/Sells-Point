@@ -164,7 +164,7 @@ export default function ProductPage({ params }) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="relative aspect-video overflow-hidden rounded-2xl bg-ink-100">
             {images.length > 0 ? (
@@ -198,7 +198,7 @@ export default function ProductPage({ params }) {
           </div>
 
           {images.length > 1 && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {images.map((src, idx) => (
                 <button
                   key={idx}
@@ -237,7 +237,7 @@ export default function ProductPage({ params }) {
                 </span>
               )}
             </div>
-            <div className="mt-3 flex items-center gap-4 text-sm text-ink-500">
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-500">
               <span className="flex items-center gap-1">
                 <MapPin size={14} /> {listing.location}
               </span>
@@ -308,7 +308,7 @@ export default function ProductPage({ params }) {
             <div className="space-y-2 text-sm text-ink-600">
               <div className="flex justify-between">
                 <span>Member since</span>
-                <span>{new Date(seller?.joinedAt).toLocaleDateString("en-IN", { year: "numeric", month: "short" })}</span>
+                <span className="text-right">{new Date(seller?.joinedAt).toLocaleDateString("en-IN", { year: "numeric", month: "short" })}</span>
               </div>
               <div className="flex justify-between">
                 <span>Verification</span>

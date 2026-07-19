@@ -35,9 +35,9 @@ export default function FilterBar({
 
   return (
     <div className="space-y-4">
-      {subcategories.length > 0 && <div className="flex items-center gap-3"><div className="flex items-center gap-2 text-sm font-semibold text-ink-700"><Tag size={16}/>Subcategory:</div><select value={subcategoryId || ""} onChange={(e)=>onSubcategoryChange(e.target.value)} className="input-field max-w-xs"><option value="">All subcategories</option>{subcategories.map((s)=><option key={s.id} value={s.id}>{s.label}</option>)}</select></div>}
+      {subcategories.length > 0 && <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"><div className="flex items-center gap-2 text-sm font-semibold text-ink-700"><Tag size={16}/>Subcategory:</div><select value={subcategoryId || ""} onChange={(e)=>onSubcategoryChange(e.target.value)} className="input-field max-w-none sm:max-w-xs"><option value="">All subcategories</option>{subcategories.map((s)=><option key={s.id} value={s.id}>{s.label}</option>)}</select></div>}
       {/* Price Range */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-ink-700">
           <IndianRupee size={16} />
           Price:
@@ -47,7 +47,7 @@ export default function FilterBar({
           placeholder="Min"
           value={minPrice || ""}
           onChange={(e) => onMinPriceChange(e.target.value ? Number(e.target.value) : null)}
-          className="input-field w-28 text-sm"
+          className="input-field min-w-0 flex-1 basis-28 text-sm sm:w-28 sm:flex-none"
           min="0"
           max={maxPrice || undefined}
         />
@@ -57,7 +57,7 @@ export default function FilterBar({
           placeholder="Max"
           value={maxPrice || ""}
           onChange={(e) => onMaxPriceChange(e.target.value ? Number(e.target.value) : null)}
-          className="input-field w-28 text-sm"
+          className="input-field min-w-0 flex-1 basis-28 text-sm sm:w-28 sm:flex-none"
           min={minPrice || 0}
         />
         {minPrice && maxPrice && minPrice > maxPrice && (
@@ -73,7 +73,7 @@ export default function FilterBar({
         <button
           type="button"
           onClick={nearby ? onClearNearby : onUseNearby}
-          className={`rounded-xl px-3.5 py-2 text-sm font-semibold ${
+          className={`min-h-11 rounded-xl px-3.5 py-2 text-sm font-semibold ${
             nearby ? "bg-brand-600 text-white" : "bg-white text-ink-600 ring-1 ring-inset ring-ink-200"
           }`}
         >
@@ -83,7 +83,7 @@ export default function FilterBar({
           <select
             value={radiusKm || 25}
             onChange={(e) => onRadiusChange(Number(e.target.value))}
-            className="rounded-xl border border-ink-200 px-3.5 py-2 text-sm text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            className="min-h-11 rounded-xl border border-ink-200 px-3.5 py-2 text-sm text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
           >
             {[5, 10, 25, 50].map((km) => (
               <option key={km} value={km}>
@@ -107,7 +107,7 @@ export default function FilterBar({
               <button
                 key={cond}
                 onClick={() => onConditionToggle(cond)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                className={`min-h-11 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   active
                     ? "bg-brand-600 text-white shadow-sm"
                     : "bg-white text-ink-600 ring-1 ring-inset ring-ink-200 hover:ring-ink-300"
@@ -129,7 +129,7 @@ export default function FilterBar({
         <select
           value={dateFilter || "all"}
           onChange={(e) => onDateFilterChange(e.target.value)}
-          className="rounded-xl border border-ink-200 px-3.5 py-2 text-sm text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          className="min-h-11 rounded-xl border border-ink-200 px-3.5 py-2 text-sm text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
         >
           {DATE_OPTIONS.map((opt) => (
             <option key={opt.id} value={opt.id}>

@@ -98,7 +98,7 @@ export default function ChatWindow({ chatId }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
+      <div className="flex min-h-16 items-center justify-between border-b border-ink-100 px-3 py-3 sm:px-4">
         <Link href={`/profile/${otherUserId}`} className="flex items-center gap-3">
           <img src={otherUser?.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
           <div>
@@ -109,7 +109,7 @@ export default function ChatWindow({ chatId }) {
         <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="rounded-full p-2 text-ink-400 hover:bg-ink-100"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink-400 hover:bg-ink-100"
           >
             <MoreVertical size={18} />
           </button>
@@ -159,7 +159,7 @@ export default function ChatWindow({ chatId }) {
         </div>
       )}
 
-      <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
         {chat.messages.length === 0 && (
           <p className="py-10 text-center text-sm text-ink-400">
             No messages yet. Say hello to {otherUser?.name}!
@@ -170,7 +170,7 @@ export default function ChatWindow({ chatId }) {
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-soft ${
+                className={`max-w-[85%] break-words rounded-2xl px-4 py-2.5 text-sm shadow-soft sm:max-w-[75%] ${
                   mine ? "bg-brand-gradient text-white" : "bg-white text-ink-800"
                 }`}
               >
@@ -195,7 +195,7 @@ export default function ChatWindow({ chatId }) {
         </div>
       ) : (
         <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-ink-100 p-3">
-          <label className="cursor-pointer rounded-xl p-2.5 text-ink-400 hover:bg-ink-100">
+          <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-400 hover:bg-ink-100">
             <Paperclip size={18} />
             <input
               type="file"
@@ -211,7 +211,7 @@ export default function ChatWindow({ chatId }) {
             placeholder="Type a message..."
             className="input-field flex-1"
           />
-          <button type="submit" className="btn-primary px-3.5 py-2.5">
+          <button type="submit" className="btn-primary h-11 w-11 shrink-0 !px-0">
             <Send size={17} />
           </button>
         </form>

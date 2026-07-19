@@ -138,22 +138,22 @@ export default function PostAdModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 animate-fade-in">
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-soft animate-slide-up">
-        <div className="flex items-center justify-between border-b border-ink-100 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/60 p-0 sm:items-center sm:p-4 animate-fade-in">
+      <div className="relative flex h-[100dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white shadow-soft animate-slide-up sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="font-display text-lg font-bold text-ink-900">
             {submitted ? "Ad Published" : "Post a New Ad"}
           </h2>
           <button
             onClick={close}
-            className="rounded-full p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-700"
           >
             <X size={18} />
           </button>
         </div>
 
         {!submitted && (
-          <div className="flex items-center gap-2 px-6 pt-4">
+          <div className="flex items-center gap-2 px-4 pt-4 sm:px-6">
             {STEPS.map((label, idx) => (
               <div key={label} className="flex flex-1 items-center gap-2">
                 <div
@@ -176,7 +176,7 @@ export default function PostAdModal({ isOpen, onClose }) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           {submitted ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
@@ -467,7 +467,7 @@ export default function PostAdModal({ isOpen, onClose }) {
         </div>
 
         {!submitted && (
-          <div className="flex items-center justify-between border-t border-ink-100 px-6 py-4">
+          <div className="flex items-center justify-between gap-3 border-t border-ink-100 px-4 py-3 sm:px-6 sm:py-4">
             <button
               onClick={() => (step === 0 ? close() : setStep((s) => s - 1))}
               className="btn-ghost"

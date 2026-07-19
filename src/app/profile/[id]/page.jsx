@@ -81,7 +81,7 @@ export default function ProfilePage({ params }) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="card mb-8 flex flex-col items-center gap-4 p-8 text-center sm:flex-row sm:text-left">
+      <div className="card mb-8 flex flex-col items-center gap-4 p-5 text-center sm:flex-row sm:p-8 sm:text-left">
         <img src={user.avatar} alt={user.name} className="h-24 w-24 rounded-full object-cover shadow-soft" />
         <div className="flex-1">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
@@ -95,7 +95,7 @@ export default function ProfilePage({ params }) {
             {currentUser?.id === user.id && (
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="btn-ghost !px-3 !py-1 text-sm"
+            className="btn-ghost min-h-11 !px-3 !py-1 text-sm"
               >
                 <Pencil size={14} /> Edit Profile
               </button>

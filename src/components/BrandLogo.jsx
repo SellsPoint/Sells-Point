@@ -1,8 +1,8 @@
 export default function BrandLogo({ compact = false, className = "" }) {
   const frameClass = compact
-    ? "h-10 w-[150px] sm:h-12 sm:w-[200px]"
+    ? "h-9 w-[112px] min-[390px]:w-[128px] sm:h-12 sm:w-[200px]"
     : "h-12 w-[200px] sm:h-14 sm:w-[220px]";
-  const imageClass = compact ? "w-[180px] sm:w-[240px]" : "w-[240px] sm:w-[265px]";
+  const imageClass = compact ? "w-[136px] min-[390px]:w-[154px] sm:w-[240px]" : "w-[240px] sm:w-[265px]";
 
   return (
     <span

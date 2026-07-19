@@ -41,6 +41,7 @@ module.exports = {
       },
       boxShadow: {
         soft: "0 8px 30px rgba(15, 23, 42, 0.08)",
+        neutral: "0 8px 28px rgba(15, 23, 42, 0.07)",
         glow: "0 0 0 1px rgba(24, 181, 104, 0.15), 0 8px 24px rgba(24, 181, 104, 0.18)",
       },
       backgroundImage: {

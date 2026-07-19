@@ -2,108 +2,90 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MapPin, Sparkles, PlayCircle } from "lucide-react";
+import { Heart, MapPin, PlayCircle, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { useSiteChrome } from "@/context/SiteChromeContext";
 
-function formatPrice(value) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+const formatPrice = (value) => new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+}).format(value);
+
+const relativeTime = (timestamp) => {
+  const elapsed = Math.max(0, Date.now() - Number(timestamp || Date.now()));
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+};
 
 export default function ProductCard({ listing }) {
   const { toggleFavorite, isFavorite, currentUser } = useApp();
+  const { openAuth } = useSiteChrome();
   const fav = isFavorite(listing.id);
-  const discount =
-    listing.originalPrice > listing.price
-      ? Math.round(((listing.originalPrice - listing.price) / listing.originalPrice) * 100)
-      : 0;
+  const discount = listing.originalPrice > listing.price
+    ? Math.round(((listing.originalPrice - listing.price) / listing.originalPrice) * 100)
+    : 0;
+  const featured = listing.featured && listing.featuredStatus === "approved";
+  const isNew = Date.now() - Number(listing.createdAt || 0) <= 7 * 24 * 60 * 60 * 1000;
+  const status = featured
+    ? { label: "Featured", className: "bg-amber-100 text-amber-800", icon: true }
+    : discount > 0
+      ? { label: "Best Price", className: "bg-brand-600 text-white" }
+      : isNew
+        ? { label: "New", className: "bg-blue-600 text-white" }
+        : null;
 
   return (
-    <div
-      className={`group card hover-card relative overflow-hidden ${
-        listing.featured && listing.featuredStatus === "approved" ? "ring-1 ring-amber-200" : ""
-      }`}
-    >
-      <Link href={`/product/${listing.id}`} className="block">
+    <article className={`group card-neutral relative overflow-hidden ${featured ? "ring-1 ring-amber-200" : ""}`}>
+      <Link href={`/product/${listing.id}`} className="block" aria-label={`View ${listing.title}`}>
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-ink-100">
           {listing.images?.[0] ? (
             <Image
               src={listing.images[0]}
               alt={listing.title}
               fill
-              sizes="(max-width: 768px) 50vw, 25vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-ink-300">
-              No image
-            </div>
+            <div className="flex h-full items-center justify-center text-sm text-ink-400">No image</div>
           )}
-
-          {listing.video && (
-            <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-ink-950/70 px-2 py-1 text-xs font-medium text-white">
-              <PlayCircle size={13} /> Video
-            </div>
-          )}
-
-          {listing.status === "sold" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-ink-950/50">
-              <span className="rounded-full bg-white px-4 py-1.5 text-sm font-bold uppercase tracking-wide text-ink-900">
-                Sold Out
-              </span>
-            </div>
-          )}
-
-          {listing.featured && listing.featuredStatus === "approved" && (
-            <div className="badge-gold absolute left-2 top-2 shadow-soft">
-              <Sparkles size={12} /> Featured
-            </div>
-          )}
-
-          {discount > 0 && (
-            <div className="absolute right-2 top-2 rounded-full bg-brand-600 px-2 py-1 text-xs font-bold text-white shadow-soft">
-              {discount}% OFF
-            </div>
-          )}
-        </div>
-      </Link>
-
-      {currentUser && (
-        <button
-          onClick={() => toggleFavorite(listing.id)}
-          className={`absolute right-2 z-10 rounded-full p-2 shadow-soft transition-colors ${
-            listing.featured || discount > 0 ? "top-11" : "top-2"
-          } ${fav ? "bg-red-500 text-white" : "bg-white/90 text-ink-500 hover:text-red-500"}`}
-          aria-label="Toggle favorite"
-        >
-          <Heart size={15} fill={fav ? "currentColor" : "none"} />
-        </button>
-      )}
-
-      <Link href={`/product/${listing.id}`} className="block p-4">
-        <h3 className="line-clamp-1 font-display text-sm font-semibold text-ink-900">
-          {listing.title}
-        </h3>
-        <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="font-display text-lg font-bold text-ink-900">
-            {formatPrice(listing.price)}
-          </span>
-          {discount > 0 && (
-            <span className="text-xs text-ink-400 line-through">
-              {formatPrice(listing.originalPrice)}
+          {listing.video && <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-ink-950/70 px-2 py-1 text-xs text-white"><PlayCircle size={13} /> Video</span>}
+          {listing.status === "sold" && <div className="absolute inset-0 flex items-center justify-center bg-ink-950/55"><span className="rounded-full bg-white px-4 py-1.5 text-sm font-bold uppercase">Sold Out</span></div>}
+          {status && (
+            <span className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm ${status.className}`}>
+              {status.icon && <Sparkles size={12} />} {status.label}
             </span>
           )}
         </div>
-        <div className="mt-2 flex items-center justify-between text-xs text-ink-500">
-          <span className="badge-ink">{listing.condition}</span>
-          <span className="flex items-center gap-1">
-            <MapPin size={12} /> {listing.distanceKm != null ? `${listing.distanceKm.toFixed(1)} km away` : listing.location}
-          </span>
+        <div className="p-3 sm:p-4">
+          <h3 className="line-clamp-2 min-h-10 font-display text-sm font-semibold leading-5 text-ink-900">{listing.title}</h3>
+          <div className="mt-2 flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0 font-display text-base font-bold text-ink-900 sm:text-lg">{formatPrice(listing.price)}</span>
+            {discount > 0 && <span className="min-w-0 truncate text-xs text-ink-400 line-through">{formatPrice(listing.originalPrice)}</span>}
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-500">
+            <span className="truncate">{relativeTime(listing.createdAt)}</span>
+            <span className="hidden min-w-0 items-center gap-1 min-[390px]:flex"><MapPin size={12} className="shrink-0" /><span className="truncate">{listing.distanceKm != null ? `${listing.distanceKm.toFixed(1)} km` : listing.location}</span></span>
+          </div>
         </div>
       </Link>
-    </div>
+      <button
+        type="button"
+        onClick={() => currentUser ? toggleFavorite(listing.id) : openAuth()}
+        className={`absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition-colors ${fav ? "bg-red-500 text-white" : "bg-white text-ink-600 hover:text-red-500"}`}
+        aria-label={fav ? `Remove ${listing.title} from favourites` : `Save ${listing.title} to favourites`}
+        aria-pressed={fav}
+      >
+        <Heart size={16} fill={fav ? "currentColor" : "none"} />
+      </button>
+    </article>
   );
 }

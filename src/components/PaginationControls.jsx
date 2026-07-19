@@ -23,7 +23,7 @@ export default function PaginationControls({
         <button
           onClick={onLoadMore}
           disabled={loading}
-          className="flex items-center gap-2 rounded-xl bg-ink-900 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? (
             <>

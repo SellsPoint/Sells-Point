@@ -86,21 +86,21 @@ export default function EditProfileModal({ isOpen, onClose, user }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 animate-fade-in">
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-soft animate-slide-up">
-        <div className="flex items-center justify-between border-b border-ink-100 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/60 p-0 sm:items-center sm:p-4 animate-fade-in">
+      <div className="relative flex h-[100dvh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-soft animate-slide-up sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="font-display text-lg font-bold text-ink-900">
             {submitted ? "Profile Updated" : "Edit Profile"}
           </h2>
           <button
             onClick={close}
-            className="rounded-full p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-700"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           {submitted ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
@@ -112,7 +112,7 @@ export default function EditProfileModal({ isOpen, onClose, user }) {
               <p className="max-w-sm text-sm text-ink-500">
                 Your profile has been updated successfully.
               </p>
-              <button onClick={close} className="btn-primary mt-3">
+              <button onClick={close} className="btn-primary mt-3 min-h-11">
                 Close
               </button>
             </div>
@@ -186,14 +186,14 @@ export default function EditProfileModal({ isOpen, onClose, user }) {
         </div>
 
         {!submitted && (
-          <div className="flex items-center justify-end gap-3 border-t border-ink-100 px-6 py-4">
-            <button onClick={close} className="btn-ghost">
+          <div className="flex items-center justify-end gap-3 border-t border-ink-100 px-4 py-3 sm:px-6 sm:py-4">
+            <button onClick={close} className="btn-ghost min-h-11">
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting || !form.name.trim()}
-              className="btn-primary"
+              className="btn-primary min-h-11"
             >
               {submitting ? "Saving..." : "Save Changes"} <Check size={16} />
             </button>
