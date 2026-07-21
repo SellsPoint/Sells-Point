@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useSiteChrome } from "@/context/SiteChromeContext";
 
@@ -99,7 +99,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="hero-wash py-8 sm:py-10 md:py-12">
+    <section className="hero-wash py-5 sm:py-6 md:py-8">
       <div className="home-container">
         <div
           ref={carouselRef}
@@ -123,9 +123,9 @@ export default function Hero() {
             touchStartX.current = event.touches[0].clientX;
           }}
           onTouchEnd={handleTouchEnd}
-          className="relative mt-6 overflow-hidden rounded-2xl bg-brand-600 shadow-neutral sm:mt-8"
+          className="relative mx-auto mt-2 max-w-[1360px] sm:mt-3"
         >
-          <div className="relative aspect-[2.12/1]" aria-live="polite">
+          <div className="relative aspect-[1.48/1] overflow-hidden rounded-2xl bg-brand-800 shadow-neutral sm:aspect-[1.8/1] md:aspect-[2.1/1]" aria-live="polite">
             {promotions.map((promotion, index) => {
               const isActive = index === activeSlide;
               const imageMissing = missingImages.has(index);
@@ -156,9 +156,9 @@ export default function Hero() {
                     className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-transparent"
                     aria-hidden="true"
                   />
-                  <div className="home-container relative z-10 flex h-full items-center py-5 sm:py-0">
-                    <div className="max-w-[58%] text-white sm:max-w-xl">
-                      <Heading className="font-display text-xl font-extrabold leading-[1.05] sm:text-3xl md:text-5xl">
+                  <div className="relative z-10 flex h-full items-center px-6 py-5 sm:px-10 sm:py-0 md:px-14 lg:px-20">
+                    <div className="max-w-[64%] text-white sm:max-w-[49%] lg:max-w-xl">
+                      <Heading className="font-display text-xl font-extrabold leading-[1.05] sm:text-3xl md:text-4xl lg:text-5xl">
                         {promotion.title}
                       </Heading>
                       <p className="mt-1 max-w-md text-[10px] leading-snug text-white/85 sm:mt-2 sm:text-sm md:mt-4 md:text-lg">
@@ -194,7 +194,7 @@ export default function Hero() {
           <button
             type="button"
             onClick={() => goToSlide(activeSlide - 1)}
-            className="absolute bottom-2 left-auto right-11 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink-800 shadow-sm transition-colors hover:bg-white focus-visible:outline-offset-2 sm:left-3 sm:right-auto sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2"
+            className="absolute bottom-2 right-11 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink-800 shadow-sm transition-colors hover:bg-white focus-visible:outline-offset-2 sm:-left-6 sm:right-auto sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2 lg:h-11 lg:w-11"
             aria-label="Previous slide"
           >
             <ChevronLeft size={22} />
@@ -202,7 +202,7 @@ export default function Hero() {
           <button
             type="button"
             onClick={() => goToSlide(activeSlide + 1)}
-            className="absolute bottom-2 right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink-800 shadow-sm transition-colors hover:bg-white focus-visible:outline-offset-2 sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2"
+            className="absolute bottom-2 right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink-800 shadow-sm transition-colors hover:bg-white focus-visible:outline-offset-2 sm:-right-6 sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2 lg:h-11 lg:w-11"
             aria-label="Next slide"
           >
             <ChevronRight size={22} />

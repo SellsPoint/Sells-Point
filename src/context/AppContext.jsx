@@ -1258,6 +1258,23 @@ export function AppProvider({ children }) {
     [currentUser]
   );
 
+  const createAdminListing = useCallback(
+    async (data) => {
+      if (!currentUser?.isAdmin) return null;
+      const res = await fetch("/api/admin/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create", listing: data }),
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const mapped = mapListing(json.listing);
+      setListings((prev) => [mapped, ...prev]);
+      return mapped;
+    },
+    [currentUser]
+  );
+
   const moderateListing = useCallback(
     async (id, action, note = "") => {
       if (!currentUser) return { success: false, error: "Not authenticated" };
@@ -1331,6 +1348,7 @@ export function AppProvider({ children }) {
     logout,
     updateProfile,
     addListing,
+    createAdminListing,
     updateListing,
     deleteListing,
     renewListing,

@@ -17,9 +17,10 @@ async function uploadFile(file) {
   return url;
 }
 
-export default function PostAdModal({ isOpen, onClose }) {
-  const { addListing, currentUser, categories, subcategories } = useApp();
+export default function PostAdModal({ isOpen, onClose, adminMode = false }) {
+  const { addListing, createAdminListing, currentUser, categories, subcategories } = useApp();
   const router = useRouter();
+  const steps = adminMode ? ["Details", "Media", "Pricing", "Review"] : STEPS;
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -126,7 +127,7 @@ export default function PostAdModal({ isOpen, onClose }) {
     }
     setSubmitting(true);
     try {
-      const listing = await addListing(form);
+      const listing = await (adminMode ? createAdminListing(form) : addListing(form));
       if (!listing) {
         setSubmitError("Unable to publish this ad. Check your account verification and try again.");
         return;
@@ -142,7 +143,7 @@ export default function PostAdModal({ isOpen, onClose }) {
       <div className="relative flex h-[100dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white shadow-soft animate-slide-up sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
         <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="font-display text-lg font-bold text-ink-900">
-            {submitted ? "Ad Published" : "Post a New Ad"}
+            {submitted ? "Listing Published" : adminMode ? "Create Listing" : "Post a New Ad"}
           </h2>
           <button
             onClick={close}
@@ -154,7 +155,7 @@ export default function PostAdModal({ isOpen, onClose }) {
 
         {!submitted && (
           <div className="flex items-center gap-2 px-4 pt-4 sm:px-6">
-            {STEPS.map((label, idx) => (
+            {steps.map((label, idx) => (
               <div key={label} className="flex flex-1 items-center gap-2">
                 <div
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
@@ -170,7 +171,7 @@ export default function PostAdModal({ isOpen, onClose }) {
                 >
                   {label}
                 </span>
-                {idx < STEPS.length - 1 && <div className="h-px flex-1 bg-ink-100" />}
+                {idx < steps.length - 1 && <div className="h-px flex-1 bg-ink-100" />}
               </div>
             ))}
           </div>
@@ -394,38 +395,40 @@ export default function PostAdModal({ isOpen, onClose }) {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => set({ featured: !form.featured })}
-                    className={`flex w-full items-center justify-between rounded-2xl border-2 px-5 py-4 text-left transition-colors ${
-                      form.featured
-                        ? "border-amber-400 bg-amber-50"
-                        : "border-ink-100 hover:border-ink-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                        <Sparkles size={20} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-ink-900">Boost as Featured Ad</p>
-                        <p className="text-xs text-ink-500">
-                          Get 5x more visibility. Subject to admin approval.
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`h-6 w-11 shrink-0 rounded-full transition-colors ${
-                        form.featured ? "bg-amber-400" : "bg-ink-200"
+                  {!adminMode && (
+                    <button
+                      type="button"
+                      onClick={() => set({ featured: !form.featured })}
+                      className={`flex w-full items-center justify-between rounded-2xl border-2 px-5 py-4 text-left transition-colors ${
+                        form.featured
+                          ? "border-amber-400 bg-amber-50"
+                          : "border-ink-100 hover:border-ink-200"
                       }`}
                     >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                          <Sparkles size={20} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-ink-900">Boost as Featured Ad</p>
+                          <p className="text-xs text-ink-500">
+                            Get 5x more visibility. Subject to admin approval.
+                          </p>
+                        </div>
+                      </div>
                       <div
-                        className={`h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
-                          form.featured ? "translate-x-5" : "translate-x-0.5"
+                        className={`h-6 w-11 shrink-0 rounded-full transition-colors ${
+                          form.featured ? "bg-amber-400" : "bg-ink-200"
                         }`}
-                      />
-                    </div>
-                  </button>
+                      >
+                        <div
+                          className={`h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                            form.featured ? "translate-x-5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </div>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -442,15 +445,16 @@ export default function PostAdModal({ isOpen, onClose }) {
                         <span className="font-display text-lg font-bold text-ink-900">
                           ₹{Number(form.price || 0).toLocaleString("en-IN")}
                         </span>
-                        {form.featured && <span className="badge-gold">Featured (pending)</span>}
+                        {!adminMode && form.featured && <span className="badge-gold">Featured (pending)</span>}
                       </div>
                     </div>
                   </div>
                   <p className="text-sm text-ink-500">
-                    Review the details above, then publish your ad. You can edit or mark it sold
-                    anytime from your dashboard.
+                    {adminMode
+                      ? "Review the details above, then publish this listing. You can manage it from this screen."
+                      : "Review the details above, then publish your ad. You can edit or mark it sold anytime from your dashboard."}
                   </p>
-                  {!currentUser?.verified && (
+                  {!adminMode && !currentUser?.verified && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                       A verified account is required before posting an ad.
                     </div>

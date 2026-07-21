@@ -236,6 +236,7 @@ function MobileBottomNav({ onAuth, onPostAd }) {
 export default function SiteChrome({ children, appName }) {
   const pathname = usePathname();
   const [authOpen, setAuthOpen] = useState(false);
+  const [authSuccessCallback, setAuthSuccessCallback] = useState(null);
   const [postOpen, setPostOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
@@ -243,8 +244,22 @@ export default function SiteChrome({ children, appName }) {
   if (isAdmin) return <main className="min-h-screen">{children}</main>;
 
   const chrome = {
-    openAuth: () => setAuthOpen(true),
+    openAuth: ({ onSuccess } = {}) => {
+      setAuthSuccessCallback(() => onSuccess || null);
+      setAuthOpen(true);
+    },
     openPostAd: () => setPostOpen(true),
+  };
+
+  const closeAuth = () => {
+    setAuthOpen(false);
+    setAuthSuccessCallback(null);
+  };
+
+  const completeAuth = (user) => {
+    const continuation = authSuccessCallback;
+    setAuthSuccessCallback(null);
+    continuation?.(user);
   };
 
   return (
@@ -312,7 +327,7 @@ export default function SiteChrome({ children, appName }) {
         </div>
       </footer>
       <MobileBottomNav onAuth={() => setAuthOpen(true)} onPostAd={() => setPostOpen(true)} />
-      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+      <AuthModal isOpen={authOpen} onClose={closeAuth} onSuccess={completeAuth} />
       <PostAdModal isOpen={postOpen} onClose={() => setPostOpen(false)} />
     </SiteChromeProvider>
   );

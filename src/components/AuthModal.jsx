@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X, Phone, ShieldCheck, User, ArrowRight } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
-export default function AuthModal({ isOpen, onClose }) {
+export default function AuthModal({ isOpen, onClose, onSuccess }) {
   const { sendOtp, verifyOtp } = useApp();
   const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
@@ -36,7 +36,10 @@ export default function AuthModal({ isOpen, onClose }) {
   const handleVerify = async (event) => {
     event.preventDefault();
     const result = await verifyOtp(phone.trim(), otp.trim(), name.trim());
-    if (result.success) close(); else setError(result.message || "Unable to continue.");
+    if (result.success) {
+      onSuccess?.(result.user);
+      close();
+    } else setError(result.message || "Unable to continue.");
   };
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 animate-fade-in">

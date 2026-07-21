@@ -34,6 +34,7 @@ import {
 import { useApp } from "@/context/AppContext";
 import BrandLogo from "@/components/BrandLogo";
 import EditListingModal from "@/components/EditListingModal";
+import PostAdModal from "@/components/PostAdModal";
 
 const TABS = [
   { id: "analytics", label: "Analytics", group: "Main", icon: BarChart3, subtitle: "Marketplace performance and community health at a glance." },
@@ -100,6 +101,7 @@ export default function AdminPanel() {
   const [userFilter, setUserFilter] = useState("");
   const [userPage, setUserPage] = useState(0);
   const [editingListing, setEditingListing] = useState(null);
+  const [creatingListing, setCreatingListing] = useState(false);
   const ADMIN_PAGE_SIZE = 10;
 
   const [monitoredChats, setMonitoredChats] = useState([]);
@@ -231,7 +233,10 @@ export default function AdminPanel() {
           )}
 
           <div>
-            <h3 className="mb-3 font-display font-bold text-ink-900">All Listings</h3>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-display font-bold text-ink-900">All Listings</h3>
+              <button onClick={() => setCreatingListing(true)} className="btn-primary px-3 py-2 text-sm"><Plus size={16} /> Create Listing</button>
+            </div>
             <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <label className="relative"><Search size={15} className="absolute left-3 top-3 text-ink-400" /><input value={listingSearch} onChange={(e) => { setListingSearch(e.target.value); setListingPage(0); }} placeholder="Title or seller" className="input-field pl-9" /></label>
               <select className="input-field" value={listingFilters.status} onChange={(e) => { setListingFilters((p) => ({...p,status:e.target.value})); setListingPage(0); }}><option value="">All statuses</option>{["active","sold","expired","flagged","removed"].map((v)=><option key={v}>{v}</option>)}</select>
@@ -1107,6 +1112,7 @@ export default function AdminPanel() {
         </div>
       )}
           <EditListingModal isOpen={!!editingListing} listing={editingListing} adminMode onClose={() => setEditingListing(null)} />
+          <PostAdModal isOpen={creatingListing} adminMode onClose={() => setCreatingListing(false)} />
         </main>
       </div>
     </div>

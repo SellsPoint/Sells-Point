@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,7 +16,10 @@ import {
   Star,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { useSiteChrome } from "@/context/SiteChromeContext";
 import { supabase } from "@/lib/supabaseClient";
+
+const CHAT_CONTINUATION_KEY = "sellspoint_pending_chat_listing";
 
 function formatPrice(value) {
   return new Intl.NumberFormat("en-IN", {
@@ -37,6 +40,7 @@ function timeAgo(ts) {
 export default function ProductPage({ params }) {
   const { id } = params;
   const router = useRouter();
+  const { openAuth } = useSiteChrome();
   const {
     hydrated,
     getListingById,
@@ -57,6 +61,20 @@ export default function ProductPage({ params }) {
   const [fetching, setFetching] = useState(false);
 
   const listing = getListingById(id) || fetchedListing;
+
+  const startChat = useCallback(
+    async (targetListing) => {
+      setChatError("");
+      if (!currentUser?.verified) {
+        setChatError("A verified account is required before starting a chat.");
+        return;
+      }
+      const chat = await getOrCreateChat(targetListing.id, targetListing.sellerId);
+      if (chat) router.push("/chat");
+      else setChatError("Unable to start this chat. Check your account verification and try again.");
+    },
+    [currentUser, getOrCreateChat, router]
+  );
 
   // Fetch listing from Supabase if not in local state (due to pagination)
   useEffect(() => {
@@ -102,6 +120,12 @@ export default function ProductPage({ params }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  useEffect(() => {
+    if (!listing || !currentUser || window.sessionStorage.getItem(CHAT_CONTINUATION_KEY) !== listing.id) return;
+    window.sessionStorage.removeItem(CHAT_CONTINUATION_KEY);
+    startChat(listing);
+  }, [currentUser, listing, startChat]);
+
   if (!hydrated || fetching) {
     return (
       <div className="page-container">
@@ -142,18 +166,13 @@ export default function ProductPage({ params }) {
   const images = listing.images?.length ? listing.images : [];
 
   const handleChat = async () => {
-    setChatError("");
     if (!currentUser) {
-      router.push("/");
+      openAuth({
+        onSuccess: () => window.sessionStorage.setItem(CHAT_CONTINUATION_KEY, listing.id),
+      });
       return;
     }
-    if (!currentUser.verified) {
-      setChatError("A verified account is required before starting a chat.");
-      return;
-    }
-    const chat = await getOrCreateChat(listing.id, listing.sellerId);
-    if (chat) router.push("/chat");
-    else setChatError("Unable to start this chat. Check your account verification and try again.");
+    await startChat(listing);
   };
 
   const submitReport = () => {
