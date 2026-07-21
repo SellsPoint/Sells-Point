@@ -104,7 +104,7 @@ export default function ProductPage({ params }) {
 
   if (!hydrated || fetching) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <div className="page-container">
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="skeleton aspect-video w-full rounded-2xl" />
@@ -163,7 +163,7 @@ export default function ProductPage({ params }) {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className="page-container">
       <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="relative aspect-video overflow-hidden rounded-2xl bg-ink-100">

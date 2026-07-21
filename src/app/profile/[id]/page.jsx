@@ -33,7 +33,7 @@ export default function ProfilePage({ params }) {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <div className="page-container">
         <div className="card mb-8 flex items-center gap-4 p-8">
           <div className="skeleton h-24 w-24 rounded-full" />
           <div className="flex-1 space-y-3">
@@ -80,7 +80,7 @@ export default function ProfilePage({ params }) {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className="page-container">
       <div className="card mb-8 flex flex-col items-center gap-4 p-5 text-center sm:flex-row sm:p-8 sm:text-left">
         <img src={user.avatar} alt={user.name} className="h-24 w-24 rounded-full object-cover shadow-soft" />
         <div className="flex-1">

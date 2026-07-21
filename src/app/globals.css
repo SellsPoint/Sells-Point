@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --home-content-width: 75rem;
+  /* Keep marketplace content comfortably wide on large displays without
+     letting it touch the viewport edges. */
+  --home-content-width: 90rem;
 }
 
 * {
@@ -37,6 +39,11 @@ body {
 @layer components {
   .home-container {
     @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
+    max-width: var(--home-content-width);
+  }
+
+  .page-container {
+    @apply mx-auto w-full px-4 py-8 lg:px-8;
     max-width: var(--home-content-width);
   }
 

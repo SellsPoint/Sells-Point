@@ -51,7 +51,7 @@ export default function ProductCard({ listing }) {
               src={listing.images[0]}
               alt={listing.title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
+              sizes="(max-width: 640px) 84vw, (max-width: 1024px) 50vw, 340px"
               className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
@@ -65,13 +65,13 @@ export default function ProductCard({ listing }) {
             </span>
           )}
         </div>
-        <div className="p-3 sm:p-4">
-          <h3 className="line-clamp-2 min-h-10 font-display text-sm font-semibold leading-5 text-ink-900">{listing.title}</h3>
+        <div className="p-4 sm:p-5">
+          <h3 className="line-clamp-2 min-h-12 font-display text-base font-semibold leading-6 text-ink-900 sm:text-lg">{listing.title}</h3>
           <div className="mt-2 flex min-w-0 items-baseline gap-2">
-            <span className="shrink-0 font-display text-base font-bold text-ink-900 sm:text-lg">{formatPrice(listing.price)}</span>
+            <span className="shrink-0 font-display text-lg font-bold text-ink-900 sm:text-xl">{formatPrice(listing.price)}</span>
             {discount > 0 && <span className="min-w-0 truncate text-xs text-ink-400 line-through">{formatPrice(listing.originalPrice)}</span>}
           </div>
-          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-500">
+          <div className="mt-3 flex items-center justify-between gap-2 text-sm text-ink-500">
             <span className="truncate">{relativeTime(listing.createdAt)}</span>
             <span className="hidden min-w-0 items-center gap-1 min-[390px]:flex"><MapPin size={12} className="shrink-0" /><span className="truncate">{listing.distanceKm != null ? `${listing.distanceKm.toFixed(1)} km` : listing.location}</span></span>
           </div>

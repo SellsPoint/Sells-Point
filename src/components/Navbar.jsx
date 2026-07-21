@@ -61,7 +61,9 @@ export default function Navbar() {
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal });
+        const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query.trim())}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error("Suggestion request failed");
         const json = await response.json();
         setSuggestions(json.suggestions || []);
@@ -120,12 +122,14 @@ export default function Navbar() {
       return;
     }
     if (suggestion.type === "location") {
-      router.push(buildLocationSearchUrl({
-        pathname: window.location.pathname,
-        currentSearch: window.location.search,
-        query,
-        location: suggestion.value,
-      }));
+      router.push(
+        buildLocationSearchUrl({
+          pathname: window.location.pathname,
+          currentSearch: window.location.search,
+          query,
+          location: suggestion.value,
+        })
+      );
       return;
     }
     setQuery(suggestion.value);
@@ -139,7 +143,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-ink-100 bg-white/95 shadow-sm backdrop-blur-xl">
+      <header className="sticky top-0 z-40 hidden border-b border-ink-100 bg-white/95 shadow-sm backdrop-blur-xl md:block">
         <div className="home-container flex items-center gap-1.5 py-2.5 sm:gap-3 sm:py-3">
           <Link href="/" aria-label="SellsPoint home" className="shrink-0">
             <BrandLogo compact />
@@ -147,7 +151,9 @@ export default function Navbar() {
 
           <form onSubmit={handleSearch} className="hidden min-w-0 flex-1 md:block">
             <div ref={searchRef} className="search-group relative overflow-visible">
-              <label className="sr-only" htmlFor="site-search-category">Search category</label>
+              <label className="sr-only" htmlFor="site-search-category">
+                Search category
+              </label>
               <select
                 id="site-search-category"
                 value={category}
@@ -155,10 +161,16 @@ export default function Navbar() {
                 className="max-w-40 rounded-l-full border-0 border-r border-ink-200 bg-ink-50 px-4 text-sm font-semibold text-ink-700 outline-none"
               >
                 <option value="">All categories</option>
-                {categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                {categories.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
               <Search size={17} className="ml-4 self-center text-ink-400" aria-hidden="true" />
-              <label className="sr-only" htmlFor="site-search">Search listings</label>
+              <label className="sr-only" htmlFor="site-search">
+                Search listings
+              </label>
               <input
                 id="site-search"
                 value={query}
@@ -171,55 +183,131 @@ export default function Navbar() {
                 aria-autocomplete="list"
                 aria-expanded={suggestionsOpen}
                 aria-controls="search-suggestions"
-                aria-activedescendant={activeSuggestion >= 0 ? `search-suggestions-option-${activeSuggestion}` : undefined}
+                aria-activedescendant={
+                  activeSuggestion >= 0 ? `search-suggestions-option-${activeSuggestion}` : undefined
+                }
               />
-              <button type="submit" className="btn-pill m-1 rounded-full bg-brand-600 px-5 py-2 text-sm text-white hover:bg-brand-700">
+              <button
+                type="submit"
+                className="btn-pill m-1 rounded-full bg-brand-600 px-5 py-2 text-sm text-white hover:bg-brand-700"
+              >
                 Search
               </button>
-              {suggestionsOpen && <SearchSuggestions id="search-suggestions" suggestions={suggestions} activeIndex={activeSuggestion} onSelect={handleSuggestion} />}
+              {suggestionsOpen && (
+                <SearchSuggestions
+                  id="search-suggestions"
+                  suggestions={suggestions}
+                  activeIndex={activeSuggestion}
+                  onSelect={handleSuggestion}
+                />
+              )}
             </div>
           </form>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
-            <Link href="/dashboard?tab=saved" className="flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50 hover:text-brand-700" aria-label="Saved favourites">
+            <Link
+              href="/dashboard?tab=saved"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50 hover:text-brand-700"
+              aria-label="Saved favourites"
+            >
               <Heart size={20} />
             </Link>
             {currentUser && (
-              <Link href="/chat" className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50" aria-label="Messages">
+              <Link
+                href="/chat"
+                className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50"
+                aria-label="Messages"
+              >
                 <MessageCircle size={20} />
-                {unreadMessageCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</span>}
+                {unreadMessageCount > 0 && (
+                  <span className="absolute right-0 top-0 rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
+                    {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                  </span>
+                )}
               </Link>
             )}
             {currentUser && (
               <div ref={notifRef} className="relative">
-                <button type="button" onClick={() => setNotifOpen((open) => !open)} className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50" aria-label="Notifications">
+                <button
+                  type="button"
+                  onClick={() => setNotifOpen((open) => !open)}
+                  className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-600 hover:bg-ink-50"
+                  aria-label="Notifications"
+                >
                   <Bell size={20} />
-                  {unreadCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                  {unreadCount > 0 && (
+                    <span className="absolute right-0 top-0 rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </button>
-                {notifOpen && <div className="absolute right-0 z-30 mt-2"><NotificationPanel /></div>}
+                {notifOpen && (
+                  <div className="absolute right-0 z-30 mt-2">
+                    <NotificationPanel />
+                  </div>
+                )}
               </div>
             )}
-            <button type="button" onClick={handleSell} className="btn-pill h-11 w-11 bg-brand-600 max-sm:!px-0 text-sm text-white hover:bg-brand-700 sm:w-auto sm:gap-2 sm:px-4">
+            <button
+              type="button"
+              onClick={handleSell}
+              className="btn-pill h-11 w-11 bg-brand-600 max-sm:!px-0 text-sm text-white hover:bg-brand-700 sm:w-auto sm:gap-2 sm:px-4"
+            >
               <PlusCircle size={17} /> <span className="hidden sm:inline">Post Your Ad</span>
             </button>
             {currentUser ? (
               <div ref={menuRef} className="relative">
-                <button type="button" onClick={() => setProfileOpen((open) => !open)} className="flex h-11 w-11 items-center justify-center rounded-full border border-ink-200 p-1 sm:w-auto sm:gap-1 sm:justify-start sm:pr-2" aria-label="Account menu" aria-expanded={profileOpen}>
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((open) => !open)}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-ink-200 p-1 sm:w-auto sm:gap-1 sm:justify-start sm:pr-2"
+                  aria-label="Account menu"
+                  aria-expanded={profileOpen}
+                >
                   <img src={currentUser.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
                   <ChevronDown size={14} />
                 </button>
                 {profileOpen && (
                   <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-ink-100 bg-white py-2 shadow-neutral">
-                    <p className="truncate border-b border-ink-100 px-4 pb-2 text-sm font-semibold">{currentUser.name}</p>
-                    <Link href={`/profile/${currentUser.id}`} className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50"><User size={15} /> My Profile</Link>
-                    <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50"><LayoutDashboard size={15} /> Dashboard</Link>
-                    {currentUser.isAdmin && <Link href="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50"><ShieldCheck size={15} /> Admin Panel</Link>}
-                    <button type="button" onClick={() => { logout(); setProfileOpen(false); router.push("/"); }} className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"><LogOut size={15} /> Logout</button>
+                    <p className="truncate border-b border-ink-100 px-4 pb-2 text-sm font-semibold">
+                      {currentUser.name}
+                    </p>
+                    <Link
+                      href={`/profile/${currentUser.id}`}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50"
+                    >
+                      <User size={15} /> My Profile
+                    </Link>
+                    <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50">
+                      <LayoutDashboard size={15} /> Dashboard
+                    </Link>
+                    {currentUser.isAdmin && (
+                      <Link href="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-ink-50">
+                        <ShieldCheck size={15} /> Admin Panel
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        setProfileOpen(false);
+                        router.push("/");
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut size={15} /> Logout
+                    </button>
                   </div>
                 )}
               </div>
             ) : (
-              <button type="button" onClick={openAuth} className="h-11 whitespace-nowrap px-1 text-sm font-semibold text-ink-700 hover:text-brand-700 sm:px-2">Log in</button>
+              <button
+                type="button"
+                onClick={openAuth}
+                className="h-11 whitespace-nowrap px-1 text-sm font-semibold text-ink-700 hover:text-brand-700 sm:px-2"
+              >
+                Log in
+              </button>
             )}
           </div>
         </div>
@@ -239,23 +327,41 @@ export default function Navbar() {
               aria-autocomplete="list"
               aria-expanded={suggestionsOpen}
               aria-controls="mobile-search-suggestions"
-              aria-activedescendant={activeSuggestion >= 0 ? `mobile-search-suggestions-option-${activeSuggestion}` : undefined}
+              aria-activedescendant={
+                activeSuggestion >= 0 ? `mobile-search-suggestions-option-${activeSuggestion}` : undefined
+              }
             />
-            <button type="submit" className="m-1 rounded-full bg-brand-600 px-4 text-white" aria-label="Submit search"><Search size={17} /></button>
-            {suggestionsOpen && <SearchSuggestions id="mobile-search-suggestions" suggestions={suggestions} activeIndex={activeSuggestion} onSelect={handleSuggestion} />}
+            <button type="submit" className="m-1 rounded-full bg-brand-600 px-4 text-white" aria-label="Submit search">
+              <Search size={17} />
+            </button>
+            {suggestionsOpen && (
+              <SearchSuggestions
+                id="mobile-search-suggestions"
+                suggestions={suggestions}
+                activeIndex={activeSuggestion}
+                onSelect={handleSuggestion}
+              />
+            )}
           </form>
         </div>
 
         <nav aria-label="Marketplace categories" className="border-t border-ink-100">
           <div className="home-container flex gap-5 overflow-x-auto py-2.5 text-sm font-semibold text-ink-600">
-            <Link href="/search" className="shrink-0 text-brand-700">Browse all</Link>
+            <Link href="/search" className="shrink-0 text-brand-700">
+              Browse all
+            </Link>
             {categories.slice(0, 10).map((item) => (
-              <Link key={item.id} href={`/search?category=${encodeURIComponent(item.id)}`} className="shrink-0 hover:text-brand-700">{item.label}</Link>
+              <Link
+                key={item.id}
+                href={`/search?category=${encodeURIComponent(item.id)}`}
+                className="shrink-0 hover:text-brand-700"
+              >
+                {item.label}
+              </Link>
             ))}
           </div>
         </nav>
       </header>
-
     </>
   );
 }

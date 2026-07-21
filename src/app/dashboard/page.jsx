@@ -78,7 +78,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className="page-container">
       <h1 className="mb-1 font-display text-2xl font-bold text-ink-900">My Dashboard</h1>
       <p className="mb-6 text-sm text-ink-500">Manage your listings, sales, and saved items.</p>
 

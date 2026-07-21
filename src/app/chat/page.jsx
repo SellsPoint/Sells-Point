@@ -48,7 +48,7 @@ export default function ChatPage() {
   if (!currentUser) return null;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className="page-container">
       <h1 className="mb-6 font-display text-2xl font-bold text-ink-900">Messages</h1>
       <div className="grid h-[calc(100dvh-10rem)] min-h-[32rem] rounded-2xl border border-ink-100 shadow-soft md:h-[70vh] md:grid-cols-3">
         <div className={`${mobileConversationOpen ? "hidden" : "flex"} flex-col overflow-hidden md:col-span-1 md:flex md:border-r`}>
