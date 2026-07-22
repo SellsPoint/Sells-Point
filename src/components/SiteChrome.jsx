@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CircleUserRound,
+  House,
   LogIn,
   LogOut,
   Menu,
@@ -191,9 +192,9 @@ function MobileBottomNav({ onAuth, onPostAd }) {
   const { currentUser } = useApp();
 
   const actionClass = (active) =>
-    `relative flex min-w-0 flex-1 items-center justify-center text-sm font-semibold transition-colors ${active ? "text-brand-600 after:absolute after:bottom-1.5 after:h-0.5 after:w-5 after:rounded-full after:bg-brand-500" : "text-ink-500 hover:text-ink-700"}`;
+    `relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${active ? "text-brand-600 after:absolute after:bottom-1.5 after:h-0.5 after:w-5 after:rounded-full after:bg-brand-500" : "text-ink-500 hover:text-ink-700"}`;
   const actionLabelClass = (active) =>
-    active ? "whitespace-nowrap rounded-xl bg-brand-50 px-2.5 py-2.5 min-[390px]:px-4" : "whitespace-nowrap px-2.5 py-2.5 min-[390px]:px-4";
+    active ? "whitespace-nowrap rounded-lg bg-brand-50 px-2 py-0.5" : "whitespace-nowrap px-2 py-0.5";
   const profileActive = pathname.startsWith("/dashboard") || pathname.startsWith("/profile");
 
   return (
@@ -202,23 +203,31 @@ function MobileBottomNav({ onAuth, onPostAd }) {
       aria-label="Mobile navigation"
     >
       <Link href="/" className={actionClass(pathname === "/")} aria-current={pathname === "/" ? "page" : undefined}>
+        <House size={20} />
         <span className={actionLabelClass(pathname === "/")}>Home</span>
       </Link>
       <Link href="/search" className={actionClass(pathname.startsWith("/search"))} aria-current={pathname.startsWith("/search") ? "page" : undefined}>
+        <Search size={20} />
         <span className={actionLabelClass(pathname.startsWith("/search"))}>Browse</span>
       </Link>
       <button type="button" onClick={() => (currentUser ? onPostAd() : onAuth())} className={actionClass(false)}>
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-white">
+          <PlusCircle size={17} />
+        </span>
         <span className={actionLabelClass(false)}>Sell</span>
       </button>
       <Link href="/chat" className={actionClass(pathname.startsWith("/chat"))} aria-current={pathname.startsWith("/chat") ? "page" : undefined}>
+        <MessageCircle size={20} />
         <span className={actionLabelClass(pathname.startsWith("/chat"))}>Chat</span>
       </Link>
       {currentUser ? (
         <Link href="/dashboard" className={actionClass(profileActive)} aria-current={profileActive ? "page" : undefined}>
+          <CircleUserRound size={20} />
           <span className={actionLabelClass(profileActive)}>Profile</span>
         </Link>
       ) : (
         <button type="button" onClick={onAuth} className={actionClass(false)}>
+          <CircleUserRound size={20} />
           <span className={actionLabelClass(false)}>Profile</span>
         </button>
       )}
