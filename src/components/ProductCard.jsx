@@ -57,12 +57,12 @@ export default function ProductCard({ listing }) {
 
   return (
     <article className={`group relative overflow-hidden rounded-xl border border-ink-100 bg-white ${featured ? "ring-1 ring-amber-200" : ""}`}>
-      <div className="relative aspect-[9/16] w-full overflow-hidden bg-white">
+      <div className="relative aspect-square w-full overflow-hidden bg-brand-50 p-3">
         {listing.images?.[0] ? (
           <ListingMedia
             src={listing.images[0]}
             alt={listing.title}
-            className="h-full w-full"
+            className="h-full w-full bg-brand-50"
             expandable
           />
         ) : (
